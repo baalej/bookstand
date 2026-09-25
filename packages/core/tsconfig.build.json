@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    // No ambient Node types in the shipped library. This is what stops a
+    // `process.env` check or a `node:` import reaching browser code — the
+    // build fails rather than shipping something that breaks off-Node.
+    "types": []
+  },
+  "include": ["src"]
+}

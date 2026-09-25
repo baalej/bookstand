@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    // Deliberately ES2020, matching the Safari 13.1 baseline in PLAN.md §9.
+    // This is what stops us reaching for Array.prototype.at / findLastIndex /
+    // Object.hasOwn and silently breaking the oldest browsers we claim to support.
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "sourceMap": true,
+    // Tests read the source tree to enforce token discipline, so they need
+    // Node. `tsconfig.build.json` takes this back away for `src`.
+    "types": ["node"]
+  },
+  "include": ["src", "test"]
+}

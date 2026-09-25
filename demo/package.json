@@ -1,0 +1,18 @@
+{
+  "name": "bookstand-demo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "reference:fetch": "node reference/fetch.mjs"
+  },
+  "dependencies": {
+    "@bookstand/core": "workspace:*"
+  },
+  "devDependencies": {
+    "vite": "^5.4.11"
+  }
+}

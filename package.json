@@ -1,0 +1,16 @@
+{
+  "name": "bookstand-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "pnpm -r --no-bail test",
+    "typecheck": "pnpm -r typecheck",
+    "build": "pnpm -r build"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

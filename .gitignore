@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.DS_Store
+
+# Reference material — StPageFlip ships its own .git; keep it out of ours.
+references/*/.git/
+
+# Third-party bundle pulled by demo/reference/fetch.mjs for the A/B harness.
+demo/reference/vendor/
