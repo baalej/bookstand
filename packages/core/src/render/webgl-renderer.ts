@@ -29,6 +29,17 @@ import type { TextureStore } from './textures.js';
 const SHARED_PRECISION = 'highp';
 
 /**
+ * Quote identifiers in the GLSL below with 'apostrophes', never backticks.
+ *
+ * The shader sources are template literals, so a backtick anywhere inside one
+ * — including inside a comment — terminates the string and the whole file
+ * stops parsing, usually surfacing as a blank page and a 500 from the dev
+ * server rather than as anything that mentions shaders. It has cost three
+ * cycles. The compiler does catch it immediately, so the fix is simply to
+ * typecheck after touching a shader.
+ */
+
+/**
  * Two coordinate frames, and the shader works in both.
  *
  * *Page-local*: x from 0 at the spine to pageWidth at the free edge, y from 0
@@ -47,7 +58,7 @@ precision highp float;
 attribute vec2 aPos;          // unit quad
 
 uniform vec4 uProject;        // scaleX, scaleY, offsetX, offsetY
-uniform vec2 uPage;           // pageWidth, pageHeight
+uniform ${SHARED_PRECISION} vec2 uPage;   // pageWidth, pageHeight
 uniform ${SHARED_PRECISION} float uMirror;      // +1 right half, -1 left half
 uniform float uUvFlip;        // 1 when the spine is on the image's right
 
@@ -85,7 +96,7 @@ void main() {
   // a triangle is exact. The fragment stage rebuilds the normal from it,
   // which makes shading independent of how coarse the mesh is — vertex
   // normals band visibly when a 21px roll spans 1.6 quads.
-  vFold = uCurl > 0.5 ? dot(pl - uFoldOrigin, uFoldNormal) : -1.0;
+  vFold = dot(pl - uFoldOrigin, uFoldNormal);
   vHinge = uAngle;
 
   if (uCurl > 0.5) {
@@ -233,8 +244,14 @@ void main() {
   float core = exp(-d * uGutterFalloff * uGutterCoreTightness);
   rgb *= 1.0 - uGutter * bowl - uGutterCore * core;
 
-  // Cast shadow: the lifted sheet darkens the page under it, strongest at the
-  // crease and fading away from it on the side the paper has folded over.
+  // Cast shadow from the turning sheet onto the pages it passes over.
+  //
+  // Only the *resting* pages receive it. The sheet does not shadow itself —
+  // see the note on the self-shadow attempt in PLAN.md: the flap sits at
+  // z = 2R and takes the perspective divide, the page under it sits at z = 0
+  // and does not, so a shadow computed on the page is offset from where the
+  // flap actually renders by 4-25px depending on fold size. It cannot hug the
+  // flap's visible edge, which is why every variant read as detached or cut.
   if (uShadow > 0.0) {
     float s = dot(vBook - uShadowOrigin, uShadowNormal);
     if (s < 0.0) rgb *= 1.0 - uShadow * exp(s / uShadowFalloff);
@@ -511,7 +528,7 @@ export class WebGLRenderer {
     gl.uniform1f(this.u['uUvFlip']!, forward ? 0 : 1);
     gl.uniform1f(this.u['uHasBack']!, flip.movingBack ? 1 : 0);
     gl.uniform1f(this.u['uLit']!, 1);
-    // The sheet is above the shadow it casts, so it must not shade itself.
+    // The sheet casts the shadow; it does not receive its own.
     gl.uniform1f(this.u['uShadow']!, 0);
 
     if (soft) {

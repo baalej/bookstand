@@ -799,6 +799,42 @@ forward, mid-drag backward — spine darkest, outer edge brightest, in every one
 what it was before the core existed and the definition comes from the narrow seam rather than from
 sheer darkness.
 
+### Phase 4f — the self-shadow, attempted five times and reverted
+
+**Reverted.** The turning sheet casts a shadow onto the resting pages; it does not receive one on its
+own un-lifted half. Written up because the failure is more useful than the feature would have been.
+
+The ask was sound: at small folds the page under a dog-ear *is* the flipping sheet, so a dog-ear with
+nothing beneath it floats. Five models, each fixing the previous one's tell and exposing a new one:
+
+| # | Model | How it read |
+|---|---|---|
+| 1 | decay from the crease, unbounded | a stripe down the whole crease line, far past the flap |
+| 2 | clamped to the flap's footprint | full strength inside — a hard cut along the flap's straight tip |
+| 3 | ramp across the tip | ramp fought the decay: two lobes, bright notch, shadow detached |
+| 4 | decay + along-crease gate | gate keyed on the roll clearing a half turn erased it at small folds |
+| 5 | gate on the flap existing | monotonic and attached in profile, still wrong on screen |
+
+**The common cause, found only after the fifth:** the flap sits at `z = 2R` and takes the perspective
+divide; the page it shadows sits at `z = 0` and does not. Its rendered silhouette therefore lands
+**4–25 px outside its material footprint**, growing with fold size:
+
+| R | 15 | 30 | 60 | 80 |
+|---|---|---|---|---|
+| offset at 250 px from centre | 4.3 px | 8.7 px | 18.0 px | 24.6 px |
+
+A shadow computed on the page in *material* space can never align with where the flap actually
+*renders*. Attempt 5 measured as a clean monotonic curve — 170 at −10 px rising to 224 at −90 px — and
+still looked detached, because the profile was right about the paper and wrong about the pixels.
+
+**How to do it properly, when it is worth the time:** a shadow-caster pass. Draw the sheet's geometry a
+second time through the same vertex path with `z` forced to the page plane, dark and low-alpha, before
+drawing the sheet itself. Caster and receiver then share one projection and the alignment is exact by
+construction. It needs a blur or a soft-edged falloff in that pass to avoid a hard silhouette, which is
+why it is a real piece of work rather than a shader tweak.
+
+**What survives:** the shadow onto the resting pages, which was right from the start and is untouched.
+
 **Still to do in this phase:** specular sheen, show-through, leading-edge highlight, fore-edge
 page-thickness stack, power-of-two/mipmap upload (the edge-on aliasing from Phase 2 is still there),
 anisotropic filtering, visual regression snapshots.

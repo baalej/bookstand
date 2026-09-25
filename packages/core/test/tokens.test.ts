@@ -101,14 +101,27 @@ describe('the renderer consumes the whole fold', () => {
     );
     expect(glsl, 'expected a vertex and a fragment source').toHaveLength(2);
 
-    const shared = ['vUV', 'vBook', 'vFold', 'vHinge', 'uFoldNormal', 'uRadius', 'uMirror', 'uCurl'];
+    // Derived from the sources, not hardcoded: a list would go stale the
+    // moment a new uniform is used in both stages, which is exactly how this
+    // regressed once already.
+    const declarations = (src: string): Map<string, string> => {
+      const found = new Map<string, string>();
+      for (const m of src.matchAll(/^\s*(?:uniform|varying)\b([^;]*?)(\w+)\s*;/gm)) {
+        found.set(m[2]!, m[0]!);
+      }
+      return found;
+    };
+    const [vertex, fragment] = glsl.map(declarations) as [Map<string, string>, Map<string, string>];
+
+    const shared = [...vertex.keys()].filter((name) => fragment.has(name));
+    expect(shared.length, 'expected some uniforms to cross the stage boundary').toBeGreaterThan(4);
+
     for (const name of shared) {
-      for (const [stage, source] of glsl.entries()) {
-        const declaration = source.match(
-          new RegExp(`^\\s*(?:uniform|varying)[^;]*\\b${name}\\b\\s*;`, 'm'),
-        );
-        expect(declaration, `${name} missing from stage ${stage}`).not.toBeNull();
-        expect(declaration![0], `${name} needs an explicit precision`).toContain(
+      for (const [stage, decl] of [
+        ['vertex', vertex.get(name)!],
+        ['fragment', fragment.get(name)!],
+      ] as const) {
+        expect(decl, `${name} needs an explicit precision in the ${stage} stage`).toContain(
           'SHARED_PRECISION',
         );
       }
@@ -147,6 +160,24 @@ describe('the renderer consumes the whole fold', () => {
     const total = defaultRender.gutter + defaultRender.gutterCore;
     expect(total).toBeGreaterThanOrEqual(0.2);
     expect(total).toBeLessThanOrEqual(0.32);
+  });
+
+  it('does not try to shadow the turning sheet with itself', () => {
+    // Deliberate, after five attempts. The flap sits at z = 2R and takes the
+    // perspective divide; the page beneath it sits at z = 0 and does not, so
+    // its rendered silhouette lands 4-25px outside its material footprint
+    // depending on fold size. A shadow computed on the page in material space
+    // therefore cannot align with the flap's visible edge — every variant
+    // read as either a stripe, a hard cut, or a detached band.
+    //
+    // Doing it properly needs a shadow-caster pass that reuses the same
+    // vertex path, so caster and receiver share a projection. Until then the
+    // sheet casts but does not receive. See PLAN.md.
+    expect(renderer).not.toContain('uShadowSelf');
+    const branch = renderer.match(/if \(uShadow > 0\.0\) \{([\s\S]*?)\n  \}/);
+    expect(branch, 'expected the cast-shadow branch').not.toBeNull();
+    expect(branch![1], 'receivers use the book-space crease').toContain('vBook');
+    expect(branch![1], 'no material-space self term').not.toContain('vFold');
   });
 
   it('measures the gutter from the binding, never from texture space', () => {
