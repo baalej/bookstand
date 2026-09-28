@@ -12,6 +12,15 @@
     "portfolio"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/baalej/bookstand.git",
+    "directory": "packages/bookstand"
+  },
+  "homepage": "https://github.com/baalej/bookstand#readme",
+  "bugs": {
+    "url": "https://github.com/baalej/bookstand/issues"
+  },
   "type": "module",
   "main": "./dist/bookstand.js",
   "types": "./dist/types/index.d.ts",

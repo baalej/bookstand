@@ -1086,9 +1086,49 @@ favicon.
 the images in document order (§2) — today a failed context sets `data-bookstand-error` and leaves the
 markup alone, which keeps the page working but does not yet show the book as images.
 
-**Before publishing:** `repository`, `homepage` and `bugs` are deliberately absent because the repo
-has no git remote yet; npm will warn until they are added. The name `bookstand` was free on the
-registry at the time of writing, but `npm publish` is the final word.
+**Published**, as `bookstand@0.1.0`, then `0.1.1` via the trusted-publishing workflow below.
+
+`repository`, `homepage` and `bugs` were deliberately left out of the first publish because the repo
+had no git remote yet — adding a guessed GitHub URL would have been a fabrication. Once `origin`
+existed, leaving them out stopped being caution and started being wrong in the other direction:
+`0.1.1`'s first publish attempt failed outright, because npm's provenance check cross-references
+`repository.url` against the actual GitHub repo the OIDC attestation came from, and an empty field
+fails that comparison —
+
+```
+E422 Unprocessable Entity — Error verifying sigstore provenance bundle: Failed to validate
+repository information: package.json: "repository.url" is "", expected to match
+"https://github.com/baalej/bookstand" from provenance
+```
+
+— caught by CI before anything reached the registry, which is what that check is for. Fixed by adding
+the real `repository` (with `directory: "packages/bookstand"`, since the package lives in a
+subdirectory of the repo, not at its root), `homepage` and `bugs`.
+
+### Phase 7a — publishing automation, and what it caught
+
+Trusted Publishing via GitHub Actions OIDC replaced the manual `npm publish` flow. No token is
+stored anywhere; the workflow's identity is exchanged for publish rights, scoped to this exact
+repo and workflow filename. Fires on a `v*.*.*` tag, not on every push — a commit is not a release.
+
+**`npm version` does not work in this repo, and it fails silently.** Run from `packages/bookstand`
+(a subdirectory of the git repo, not its root), it bumped `package.json` correctly but skipped the
+git commit and tag with no visible error — the reason surfaces only at `--loglevel verbose`:
+
+```
+verbose version Not tagging: not in a git repo or no git cmd
+```
+
+`npm version`'s git integration only creates a commit and tag when the package it's versioning sits
+at the git repository's root. Ours doesn't, by design — one repo, one package, in
+`packages/bookstand/`. The fix is to treat `npm version <bump> --no-git-tag-version` as bump-only
+and commit + tag by hand; there is no flag that makes the automatic path work here.
+
+**The account's own security posture blocked the first publish, independently of any of this.**
+`npm profile get` showed two-factor auth disabled entirely — which explains an earlier confusing
+sequence on the way here: an interactive publish attempt 403'd instantly with no OTP prompt (there
+is no factor to challenge for), and a granular access token with "bypass 2FA" enabled also failed,
+because bypassing 2FA presupposes an account that has some to bypass. Enabling 2FA resolved both.
 
 ---
 
