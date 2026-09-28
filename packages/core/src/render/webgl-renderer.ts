@@ -72,10 +72,9 @@ uniform float uFocal;
 uniform float uMinW;
 
 varying ${SHARED_PRECISION} vec2 vUV;
-varying ${SHARED_PRECISION} vec2 vBook;   // book-space xy, for the cast shadow
 varying ${SHARED_PRECISION} float vFold;  // signed distance past the crease
 varying ${SHARED_PRECISION} float vHinge; // rigid hinge angle, for shading
-varying ${SHARED_PRECISION} float vSpine; // 0 at the spine, 1 at the free edge
+varying ${SHARED_PRECISION} float vSpine;
 
 const float PI = 3.141592653589793;
 
@@ -126,7 +125,6 @@ void main() {
   }
 
   vec2 book = vec2(p.x * uMirror, p.y);
-  vBook = book;
 
   // A sheet tilted toward the viewer really does grow, but unbounded growth
   // overflows the footprint and clips at the canvas edge, so the divide is
@@ -150,7 +148,6 @@ const FRAGMENT = `
 precision mediump float;
 
 varying ${SHARED_PRECISION} vec2 vUV;
-varying ${SHARED_PRECISION} vec2 vBook;
 varying ${SHARED_PRECISION} float vFold;
 varying ${SHARED_PRECISION} float vHinge;
 varying ${SHARED_PRECISION} float vSpine;
@@ -162,6 +159,7 @@ uniform ${SHARED_PRECISION} vec2 uFoldNormal;
 uniform ${SHARED_PRECISION} float uRadius;
 uniform ${SHARED_PRECISION} float uMirror;
 uniform ${SHARED_PRECISION} float uCurl;
+uniform ${SHARED_PRECISION} vec2 uPage;
 
 const float PI = 3.141592653589793;
 
@@ -192,14 +190,19 @@ uniform float uGutter;        // broad bowl strength
 uniform float uGutterCore;    // narrow seam strength, on top of the bowl
 uniform float uGutterFalloff; // higher = tighter to the spine
 uniform float uGutterCoreTightness;
+// Interior paper bows into the binding; a cover board is rigid and meets the
+// spine at a hinge. Giving a cover the same broad gradient is what makes a
+// bound book read as a stapled booklet.
+//
+// Per *face*, not per sheet: x for the front face, y for the back. A leaf is
+// rigid when either of its faces is a cover, so the first and last leaves
+// carry one cover and one interior page. Keyed on the leaf, hovering them
+// flattened the interior page's gutter too — the gradient vanishing under the
+// cursor on exactly the pages next to the covers.
+uniform vec2 uGutterScale;
 uniform float uLit;           // 1 to shade by the normal, 0 to leave flat
-uniform vec3 uLight;
+uniform ${SHARED_PRECISION} vec3 uLight;
 uniform float uAmbient;
-
-uniform float uShadow;        // cast-shadow strength, 0 disables
-uniform vec2 uShadowOrigin;   // book-space point on the crease
-uniform vec2 uShadowNormal;   // book-space unit, into the lifted part
-uniform float uShadowFalloff;
 
 void main() {
   vec4 c;
@@ -239,23 +242,14 @@ void main() {
   //   core — a narrow seam right at the fold. A single smooth gradient loses
   //          the centre entirely: there is nothing to read as *the* spine,
   //          only a vague darkening.
+  // Selected the same way the texture above is, so the shading always belongs
+  // to the face actually being shown.
+  float gutterScale = (gl_FrontFacing || uHasBack < 0.5) ? uGutterScale.x : uGutterScale.y;
+
   float d = vSpine;
   float bowl = exp(-d * uGutterFalloff);
   float core = exp(-d * uGutterFalloff * uGutterCoreTightness);
-  rgb *= 1.0 - uGutter * bowl - uGutterCore * core;
-
-  // Cast shadow from the turning sheet onto the pages it passes over.
-  //
-  // Only the *resting* pages receive it. The sheet does not shadow itself —
-  // see the note on the self-shadow attempt in PLAN.md: the flap sits at
-  // z = 2R and takes the perspective divide, the page under it sits at z = 0
-  // and does not, so a shadow computed on the page is offset from where the
-  // flap actually renders by 4-25px depending on fold size. It cannot hug the
-  // flap's visible edge, which is why every variant read as detached or cut.
-  if (uShadow > 0.0) {
-    float s = dot(vBook - uShadowOrigin, uShadowNormal);
-    if (s < 0.0) rgb *= 1.0 - uShadow * exp(s / uShadowFalloff);
-  }
+  rgb *= 1.0 - (uGutter * bowl + uGutterCore * core) * gutterScale;
 
   gl_FragColor = vec4(rgb, c.a);
 }
@@ -280,13 +274,10 @@ const UNIFORMS = [
   'uGutterCore',
   'uGutterFalloff',
   'uGutterCoreTightness',
+  'uGutterScale',
   'uLit',
   'uLight',
   'uAmbient',
-  'uShadow',
-  'uShadowOrigin',
-  'uShadowNormal',
-  'uShadowFalloff',
 ];
 
 export interface RenderOptions {
@@ -304,6 +295,12 @@ export interface RenderOptions {
   gutterCore: number;
   /** How much tighter the seam is than the bowl. */
   gutterCoreTightness: number;
+  /**
+   * The covers' share of the interior gutter. Low: a board does not bow into
+   * the binding the way paper does, and giving it the full gradient makes the
+   * book look like a folded booklet rather than something bound.
+   */
+  coverGutter: number;
   /** Perspective focal length, in page widths. Lower is more dramatic. */
   focal: number;
   /**
@@ -318,10 +315,6 @@ export interface RenderOptions {
    * the diffuse term is here to sculpt the roll, not to light the page.
    */
   ambient: number;
-  /** Depth of the shadow the lifted sheet casts on the page beneath. */
-  shadow: number;
-  /** How far that shadow reaches from the crease, as a fraction of page width. */
-  shadowFalloff: number;
   /** Curl mesh subdivisions. Enough that the roll reads smooth at the crease. */
   segments: readonly [number, number];
 }
@@ -331,12 +324,11 @@ export const defaultRender: RenderOptions = {
   gutterFalloff: 6,
   gutterCore: 0.14,
   gutterCoreTightness: 7,
+  coverGutter: 0.2,
   focal: 4,
   maxMagnification: 1.08,
   light: [-0.35, -0.5, 0.79],
   ambient: 0.78,
-  shadow: 0.42,
-  shadowFalloff: 0.16,
   // Dense enough that the roll's *silhouette* resolves; shading no longer
   // depends on this, since the fragment stage rebuilds the normal. One sheet
   // at a time, so ~38k triangles a frame.
@@ -408,9 +400,6 @@ export class WebGLRenderer {
     const ch = this.canvas.height;
     const dpr = cw / Math.max(1, this.canvas.clientWidth);
 
-    gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
     gl.useProgram(this.program);
     gl.uniform4fv(this.u['uProject']!, [
       (2 * dpr) / cw,
@@ -429,38 +418,14 @@ export class WebGLRenderer {
     gl.uniform1f(this.u['uGutterCoreTightness']!, this.options.gutterCoreTightness);
     gl.uniform3fv(this.u['uLight']!, this.options.light as unknown as number[]);
     gl.uniform1f(this.u['uAmbient']!, this.options.ambient);
-    gl.uniform1f(this.u['uShadowFalloff']!, layout.pageWidth * this.options.shadowFalloff);
 
-    const flip = frame.flip;
-    this.setShadow(flip, layout);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     // Resting halves first; the turning sheet passes over them.
     this.drawFace(frame.left, 'left', layout, textures);
     this.drawFace(frame.right, 'right', layout, textures);
-    if (flip) this.drawSheet(flip, layout, textures);
-  }
-
-  /**
-   * The cast shadow lives in book space so one uniform pair serves both
-   * halves — the sheet lifts off one side of the book and lands on the other.
-   */
-  private setShadow(flip: FrameState['flip'], layout: Layout): void {
-    const { gl } = this;
-    // A hint casts nothing. Its shadow spread across the page under the
-    // cursor and read as a hover highlight — the lifted corner is the
-    // whole affordance.
-    if (!flip || flip.rigid || flip.hint) {
-      gl.uniform1f(this.u['uShadow']!, 0);
-      return;
-    }
-    const mirror = flip.direction === 'forward' ? 1 : -1;
-    const o: Point = flip.fold.origin;
-    const n: Point = flip.fold.normal;
-    // Fade the shadow in with the fold so a barely-lifted page casts nothing.
-    const strength = this.options.shadow * Math.min(1, flip.fold.progress * 6);
-    gl.uniform1f(this.u['uShadow']!, strength);
-    gl.uniform2f(this.u['uShadowOrigin']!, o.x * mirror, o.y);
-    gl.uniform2f(this.u['uShadowNormal']!, n.x * mirror, n.y);
+    if (frame.flip) this.drawSheet(frame.flip, layout, textures);
   }
 
   private bindGrid(grid: Grid): void {
@@ -480,6 +445,11 @@ export class WebGLRenderer {
    */
   private setWinding(mirror: number): void {
     this.gl.frontFace(mirror > 0 ? this.gl.CCW : this.gl.CW);
+  }
+
+  /** A cover board does not bow into the binding; interior paper does. */
+  private gutterScaleFor(face: FaceSlot): number {
+    return face && face.role !== 'interior' ? this.options.coverGutter : 1;
   }
 
   private drawFace(
@@ -505,6 +475,8 @@ export class WebGLRenderer {
     gl.uniform1f(this.u['uRadius']!, 1); // never leave a divisor at zero
     gl.uniform1f(this.u['uHasBack']!, 0);
     gl.uniform1f(this.u['uLit']!, 0); // a page lying flat needs no shading
+    const scale = this.gutterScaleFor(face);
+    gl.uniform2f(this.u['uGutterScale']!, scale, scale);
     gl.drawElements(gl.TRIANGLES, this.flat.count, gl.UNSIGNED_SHORT, 0);
   }
 
@@ -528,9 +500,11 @@ export class WebGLRenderer {
     gl.uniform1f(this.u['uUvFlip']!, forward ? 0 : 1);
     gl.uniform1f(this.u['uHasBack']!, flip.movingBack ? 1 : 0);
     gl.uniform1f(this.u['uLit']!, 1);
-    // The sheet casts the shadow; it does not receive its own.
-    gl.uniform1f(this.u['uShadow']!, 0);
-
+    gl.uniform2f(
+      this.u['uGutterScale']!,
+      this.gutterScaleFor(flip.movingFront),
+      this.gutterScaleFor(flip.movingBack),
+    );
     if (soft) {
       gl.uniform1f(this.u['uCurl']!, 1);
       gl.uniform2f(this.u['uFoldOrigin']!, flip.fold.origin.x, flip.fold.origin.y);

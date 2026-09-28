@@ -162,22 +162,91 @@ describe('the renderer consumes the whole fold', () => {
     expect(total).toBeLessThanOrEqual(0.32);
   });
 
-  it('does not try to shadow the turning sheet with itself', () => {
-    // Deliberate, after five attempts. The flap sits at z = 2R and takes the
-    // perspective divide; the page beneath it sits at z = 0 and does not, so
-    // its rendered silhouette lands 4-25px outside its material footprint
-    // depending on fold size. A shadow computed on the page in material space
-    // therefore cannot align with the flap's visible edge — every variant
-    // read as either a stripe, a hard cut, or a detached band.
+  it('has no cast-shadow pass, and is not to grow one back', () => {
+    // A deliberate refusal, after seven attempts across three phases. Read
+    // this before adding a shadow; the failure was never in the technique.
     //
-    // Doing it properly needs a shadow-caster pass that reuses the same
-    // vertex path, so caster and receiver share a projection. Until then the
-    // sheet casts but does not receive. See PLAN.md.
-    expect(renderer).not.toContain('uShadowSelf');
-    const branch = renderer.match(/if \(uShadow > 0\.0\) \{([\s\S]*?)\n  \}/);
-    expect(branch, 'expected the cast-shadow branch').not.toBeNull();
-    expect(branch![1], 'receivers use the book-space crease').toContain('vBook');
-    expect(branch![1], 'no material-space self term').not.toContain('vFold');
+    // Five material-space fields (4f) read as detached or cut. A caster drawn
+    // into the scene (4f) was erased by the very sheet that cast it: measured
+    // at 0 surviving pixels on the flap's own half, at every progress and from
+    // both corners. An off-screen caster, blurred, with every surface on the
+    // page receiving it (4i) put the shadow in the right place and still
+    // produced a hard-edged stripe running alongside the curl — because the
+    // caster has to stop somewhere, and where it stops is the crease: a
+    // dead-straight line across the page. Blurring a straight step edge
+    // leaves a straight edge.
+    //
+    // What was measured when it was removed: the dog-ear still reads. The
+    // curl's own half-Lambert shading off the cylinder normal is what gives a
+    // fold its form, and the gutter is what makes two pages read as one bound
+    // object. Neither needs a pass, a buffer or an option. The cast shadow
+    // was costing 0.2ms a frame, two framebuffers (~2.3MB per book instance),
+    // a second shader program and three draw calls to make the picture worse.
+    //
+    // If a shadow is ever wanted again, the thing to solve first is the
+    // termination at the crease — not the projection, not the blur, and not
+    // where the receivers are.
+    for (const gone of [
+      'uCast',
+      'uShadow',
+      'uShadowMap',
+      'uShadowOrigin',
+      'uShadowNormal',
+      'uShadowFalloff',
+      'uShadowSlant',
+      'uViewport',
+      'vLift',
+      'vBook',
+      'ShadowMap',
+      'depthMask',
+    ]) {
+      expect(renderer, `${gone} belongs to the cast shadow, which is gone`).not.toContain(gone);
+    }
+    // And no second program to blur one with.
+    expect(renderer.match(/createProgram\(/g) ?? [], 'one program, one pass').toHaveLength(1);
+    expect(
+      sourceFiles(SRC).map((f) => f.slice(SRC.length + 1)),
+      'the shadow-map module should be deleted, not left unused',
+    ).not.toContain(join('render', 'shadow-map.ts'));
+  });
+
+  it('keeps the two shadings that survived, and keeps them free', () => {
+    // The gutter at the spine and the curl's own diffuse term. Both are a few
+    // arithmetic ops per fragment inside the one pass that was already going
+    // to run, which is the whole reason they survived the cull.
+    expect(renderer, 'the spine gutter').toMatch(/uGutter \* bowl \+ uGutterCore \* core/);
+    expect(renderer, "the curl's own shading").toContain('surfaceNormal');
+    expect(defaultRender.gutter).toBeGreaterThan(0);
+    expect(defaultRender.ambient).toBeGreaterThan(0);
+  });
+
+  it('does not bow a cover into the binding the way paper bows', () => {
+    // Interior paper curves into the gutter; a cover board is rigid and meets
+    // the spine at a hinge. Giving it the same broad gradient made the book
+    // read as a stapled booklet rather than something bound.
+    expect(renderer).toContain('uGutterScale');
+    expect(defaultRender.coverGutter).toBeGreaterThan(0);
+    expect(defaultRender.coverGutter).toBeLessThan(0.5);
+  });
+
+  it('scales the gutter per face, never per leaf', () => {
+    // A leaf is rigid when *either* of its faces is a cover, so the first and
+    // last leaves carry one cover and one interior page. Keyed on the leaf,
+    // hovering them flattened the interior page's gutter as well — the
+    // gradient vanishing under the cursor on exactly the pages beside the
+    // covers.
+    expect(renderer, 'the scale must come from a face').toContain('gutterScaleFor');
+    expect(renderer).toMatch(/gutterScaleFor\(flip\.movingFront\)/);
+    expect(renderer).toMatch(/gutterScaleFor\(flip\.movingBack\)/);
+    // Never from the leaf's own density.
+    // Scoped to the call's own arguments: `soft` legitimately appears
+    // elsewhere in drawSheet, where it selects the mesh.
+    const sheet = renderer.slice(renderer.indexOf('private drawSheet('));
+    const args = sheet.match(/uGutterScale'\]!,([\s\S]*?)\);/)?.[1] ?? '';
+    expect(args, 'expected the call to be found').not.toBe('');
+    expect(args, 'the sheet must not key the gutter on its density').not.toMatch(/\bsoft\b/);
+    // And the shader has to pick the one belonging to the visible face.
+    expect(renderer).toMatch(/gl_FrontFacing[^;]*uGutterScale\.x\s*:\s*uGutterScale\.y/);
   });
 
   it('measures the gutter from the binding, never from texture space', () => {

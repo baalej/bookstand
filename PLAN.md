@@ -799,41 +799,196 @@ forward, mid-drag backward — spine darkest, outer edge brightest, in every one
 what it was before the core existed and the definition comes from the narrow seam rather than from
 sheer darkness.
 
-### Phase 4f — the self-shadow, attempted five times and reverted
-
-**Reverted.** The turning sheet casts a shadow onto the resting pages; it does not receive one on its
-own un-lifted half. Written up because the failure is more useful than the feature would have been.
+### Phase 4f — the self-shadow: five failures, one cause, one fix
 
 The ask was sound: at small folds the page under a dog-ear *is* the flipping sheet, so a dog-ear with
-nothing beneath it floats. Five models, each fixing the previous one's tell and exposing a new one:
+nothing beneath it floats. Five models each fixed the previous tell and exposed a new one:
 
 | # | Model | How it read |
 |---|---|---|
-| 1 | decay from the crease, unbounded | a stripe down the whole crease line, far past the flap |
-| 2 | clamped to the flap's footprint | full strength inside — a hard cut along the flap's straight tip |
-| 3 | ramp across the tip | ramp fought the decay: two lobes, bright notch, shadow detached |
-| 4 | decay + along-crease gate | gate keyed on the roll clearing a half turn erased it at small folds |
-| 5 | gate on the flap existing | monotonic and attached in profile, still wrong on screen |
+| 1 | decay from the crease, unbounded | a stripe down the whole crease line |
+| 2 | clamped to the flap's footprint | a hard cut along the flap's straight tip |
+| 3 | ramp across the tip | two lobes, bright notch, shadow detached |
+| 4 | decay + gate on the roll clearing a half turn | erased at small folds |
+| 5 | decay + gate on the flap existing | monotonic in profile, still wrong on screen |
 
-**The common cause, found only after the fifth:** the flap sits at `z = 2R` and takes the perspective
-divide; the page it shadows sits at `z = 0` and does not. Its rendered silhouette therefore lands
-**4–25 px outside its material footprint**, growing with fold size:
+**One cause behind all five.** The flap sits at `z = 2R` and takes the perspective divide; the page it
+shadows sits at `z = 0` and does not. Its rendered silhouette lands **4–25 px outside its material
+footprint**, growing with fold size. A shadow computed *on the page in material space* can never align
+with where the flap *renders*. Attempt 5 measured as a textbook curve — 170 at −10 px rising to 224 at
+−90 px — and still looked detached: the profile was right about the paper and wrong about the pixels.
 
-| R | 15 | 30 | 60 | 80 |
-|---|---|---|---|---|
-| offset at 250 px from centre | 4.3 px | 8.7 px | 18.0 px | 24.6 px |
+**The fix is a caster pass, not a better field.** Draw the same mesh through the same vertex path,
+displaced onto the page along the light:
 
-A shadow computed on the page in *material* space can never align with where the flap actually
-*renders*. Attempt 5 measured as a clean monotonic curve — 170 at −10 px rising to 224 at −90 px — and
-still looked detached, because the profile was right about the paper and wrong about the pixels.
+```glsl
+if (uCast > 0.5) {
+  vec3 l = normalize(uLight);
+  p = vec3(p.xy - (p.z / max(l.z, 0.2)) * l.xy, 0.0);
+}
+```
 
-**How to do it properly, when it is worth the time:** a shadow-caster pass. Draw the sheet's geometry a
-second time through the same vertex path with `z` forced to the page plane, dark and low-alpha, before
-drawing the sheet itself. Caster and receiver then share one projection and the alignment is exact by
-construction. It needs a blur or a soft-edged falloff in that pass to avoid a hard silhouette, which is
-why it is a real piece of work rather than a shader tweak.
+Landing at `z = 0` it takes `w = 1`, exactly like the page receiving it, so caster and receiver share
+one projection and cannot drift apart. Alpha falls off with height, so the fold reads as contact and
+the raised tip only hints. Drawn between the resting pages and the sheet, with depth writes off.
 
-**What survives:** the shadow onto the resting pages, which was right from the start and is untouched.
+> **Displaced along the light, not straight down.** Straight down lands back on the material footprint
+> and reproduces the original bug exactly. That distinction is the whole fix.
+
+**And the flap was standing too high.** At `maxRadius 0.18` it stood 106 px off a 446 px page —
+proportionally a corner hovering 4 cm above an A4 sheet, a tube rather than a fold. At **0.06** it
+stands 54 px, reads as paper, and halves the projection gap the caster pass has to close. Cheap change,
+large effect; worth making before reaching for shadow machinery.
+
+**Known limit:** the silhouette is geometric, so the shadow's edge is defined rather than blurred. Real
+contact shadows are fairly defined, so this reads correctly at the sizes tested. Genuinely soft edges
+would need the caster rendered to an offscreen buffer and blurred — two more passes.
+
+> Phase 4i did exactly that, and found the limit was understated: drawn into the scene the caster was
+> not merely hard-edged, it was **erased by its own sheet on the half the flap was over**. The two
+> extra passes were not a refinement, they were the fix.
+
+### Phase 4g — covers do not bow into the binding
+
+The gutter was applied uniformly to every face, so the cover and back cover got the same broad gradient
+at their spine edge as interior paper. That reads as a **stapled booklet** — paper folded at the middle
+— rather than a bound book.
+
+Interior paper genuinely curves down into the binding. A cover board does not: it is rigid and meets
+the spine at a hinge. `coverGutter` (0.2) scales the gutter down on any face whose role is not
+`interior`, and on the turning sheet whenever it is rigid.
+
+The guard counts the *call sites*, not the presence of the uniform: both the face path and the sheet
+path have to set it, or a cover inherits whatever the previous draw left behind. Removing either one
+fails the test by name.
+
+### Phase 4h — the gutter belongs to the face, not the leaf
+
+Phase 4g's cover fix regressed the pages either side of it: hovering the first or last interior page
+flattened its gutter.
+
+A **leaf is rigid when *either* of its faces is a cover** — that rule is correct and deliberate, because
+a cover board does not bend and its reverse cannot either. But it means the first and last leaves carry
+one cover *and* one interior page. Keying the gutter on the leaf therefore gave the interior page the
+cover's flat treatment, and only while that leaf was being drawn as a turning sheet — which is to say,
+only under the cursor.
+
+The gutter is a property of the **face**: is *this* surface a board, or paper? So it is now selected
+exactly the way the texture is, by `gl_FrontFacing`:
+
+```glsl
+float gutterScale = (gl_FrontFacing || uHasBack < 0.5) ? uGutterScale.x : uGutterScale.y;
+```
+
+Measured after: the spine holds at 191 → 254 with and without hover, on the cover-adjacent spread and
+mid-book alike.
+
+> Third time a bug has come from attaching shading to the wrong thing — texture space instead of the
+> binding, deformed position instead of material position, and now the leaf instead of the face. Worth
+> asking, of any new shading term: *what does this belong to?*
+
+### Phase 4i — the shadow was an object in the scene, and had to stop being one
+
+**Reported:** the page you are pulling casts no shadow on itself; a shadow appears from the spine only
+once the flap crosses it, covering the whole opposite page; and that shadow is sharp, with no blur.
+All three were one decision.
+
+Measured before touching anything, by diffing each frame against the same frame with `shadow: 0`:
+
+| Reported | Measured |
+|---|---|
+| No shadow on the page being pulled | `drawSheet` repaints the whole half *after* the caster. Across five progress points from both corners: **0 changed pixels** on the sheet's own half, every time. |
+| A shadow anchored at the spine over the whole opposite page | Not the flap's shadow at all. The analytic `exp(s/falloff)` field on the resting pages is a half-plane keyed to the crease line *extended to infinity*, so it washes the page regardless of the flap's silhouette — mean 2–10/255, and banding visibly at that depth. |
+| Sharp, no blur | The geometric caster contributed **15 pixels at 66% progress and none anywhere else** — a dashed hairline where caster and sheet z-fight at the crease. That hairline was the only hard edge on screen. |
+
+**One cause: the shadow was drawn into the scene**, between the resting pages and the sheet. From that
+one decision all three follow — it is occluded by the very sheet that casts it, it z-fights the page
+where the two are coplanar, and it cannot be blurred, because a shadow rasterised in place is final.
+The analytic field was then added to compensate for the caster being invisible, which is why the thing
+the reader actually saw was the compensation rather than the shadow.
+
+> A shadow is not an object in the scene. It is a field over the page, and it wants its own buffer.
+
+**The fix.** `render/shadow-map.ts`: the caster renders into a half-resolution off-screen target,
+gets a separable Gaussian, and every surface still lying on the page samples it — both resting halves
+*and* the flat side of the turning sheet's own crease. Receivers are selected by height (`step(vLift,
+0.5)`), not by which draw call they belong to, so the sheet receives the shadow it casts. Because
+caster and receiver are both at z = 0 and so both take w = 1, one projection serves both and the
+lookup can be `gl_FragCoord` with nothing able to drift.
+
+The analytic field is **deleted**, not corrected — along with `uShadowOrigin`, `uShadowNormal`,
+`uShadowFalloff` and the `vBook` varying it needed. Two models of one phenomenon means the wrong one
+can be the only one anybody sees.
+
+**A latent bug found on the way.** The caster drew its *flat* region too, blackening the entire
+unlifted half at full strength. It was invisible only because the sheet painted over it a moment
+later — and it is precisely why the caster could not be lifted out of the scene until it was found.
+Only paper that has left the page casts: `if (vFold < 0.0) discard`.
+
+**Softness says distance; opacity does not.** The old model faded the shadow out with height
+(`exp(-lift / 0.1w)`, down to 30% at a normal flap), which reads as the shadow disappearing rather
+than the paper floating. The caster now carries its height in the red channel, premultiplied exactly
+as the blend leaves it, and the blur reads it back to widen the penumbra. Energy conservation in the
+Gaussian then lightens a spread shadow for free, which is what a real penumbra does.
+
+Measured after, same probe: the sheet's own half carries **2451–9399 px** of shadow at every progress
+instead of 0, at **22–36/255** instead of 2–10, top and bottom corners within ~10% of each other; and
+the hardest adjacent-texel step in the map falls from **169 — a full cliff — to 29**.
+
+**Cost: +0.2 ms per frame**, flat across the turn (headless SwiftShader, 940×700 book; a ratio, not a
+device figure). The triangle count is unchanged — same mesh, same draw — and the caster's fill is now
+a quarter of what it was, because it renders at half resolution in each axis. Two blur passes are
+three vertices each over that quarter-area buffer. An idle book still costs nothing: nothing is
+captured unless something is casting.
+
+> **Superseded by Phase 4j — this whole system is deleted.** It is kept here because the measurements
+> are what justify the refusal, and because the two corrections it does contain are permanent: a
+> shadow drawn into the scene is erased by its own sheet, and softness rather than opacity is what
+> says how far a caster is. Both were true. They just were not enough.
+
+**One WebGL trap, and it failed silently.** Last frame's map is still bound to its sampler unit when
+the next capture begins, and it is also the texture that capture renders into. WebGL rejects that as a
+feedback loop: `INVALID_OPERATION`, the draw discarded, the buffer empty on every frame but the first,
+and **no console output of any kind**. It surfaced only as a `getError()` probe. Unbind before
+capturing.
+
+### Phase 4j — the cast shadow is deleted, and is not to come back
+
+Phase 4i put the shadow in the right place and it still read wrong: **a hard-edged stripe running
+alongside the curl**, which at dog-ear scale is the whole of what the system contributed. Isolating it
+(frame minus the same frame with `shadow: 0`) shows a single diagonal band, sharply cut on one side.
+
+That cut is the caster's `vFold < 0` discard. A caster has to stop somewhere, and where it stops is the
+crease — a dead-straight line clean across the page. **Blurring a straight step edge leaves a straight
+edge.** The blur can soften how quickly it arrives; it cannot stop it being a line.
+
+Two things were ruled out by measurement before deleting anything:
+
+- **Misregistration.** The caster projects at `w = 1` while the flap it shadows is magnified ~3% by the
+  perspective divide, so the two sit up to 10px apart. Fixed in two lines — keep the pre-flattening `z`
+  for the divide — and re-shot: **the band was unchanged.** Worth knowing that 4i's stated reason for
+  screen-space sampling was subtly wrong, too. Caster and receiver do *not* need to share a projection;
+  the receiver is sampled in screen space, so any screen position works. What has to match is the
+  shadow and the *flap*.
+- **Whether the fold needs it at all.** With the cast shadow off, the dog-ear still reads. The curl's
+  own half-Lambert term off the cylinder normal is what gives a fold its form — not the shadow.
+
+| Deleting it | |
+|---|---|
+| Frame time | **0.44–0.50 ms → 0.20–0.26 ms**, roughly halved |
+| GPU memory | −2 framebuffers, ~2.3 MB *per book instance* at a 1500×761 canvas |
+| Code | −248-line module, −second shader program, −3 draw calls, −3 render options, −2 varyings, −8 uniforms |
+
+> **The two shadings that survived did so because they are free.** The gutter at the spine and the
+> curl's own diffuse term are a few arithmetic ops inside the pass that was already going to run. No
+> buffer, no second program, no option. That is the bar a new shading term has to clear.
+
+**Do not re-add a cast shadow without solving the termination first.** Seven attempts across three
+phases failed, and never on the technique: five material-space fields read as detached or cut (4f); a
+caster drawn into the scene was erased by the very sheet casting it, 0 surviving pixels on the flap's
+own half (4f/4i); an off-screen blurred caster with correct receivers produced this stripe (4i). The
+projection, the blur and the choice of receivers have all now been tried and are not the problem.
+`test/tokens.test.ts` fails by name if any of the machinery reappears.
 
 **Still to do in this phase:** specular sheen, show-through, leading-edge highlight, fore-edge
 page-thickness stack, power-of-two/mipmap upload (the edge-on aliasing from Phase 2 is still there),

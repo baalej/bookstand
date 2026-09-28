@@ -31,7 +31,11 @@ export const defaultCurl: CurlOptions = {
   // flap from completing its half turn, which is the thing that makes the
   // dog-ear visible. Faceting is the renderer's problem, not the model's.
   minRadius: 0.02,
-  maxRadius: 0.18,
+  // Low. At 0.18 the flap stood 106px off a 446px page — proportionally a
+  // corner hovering 4cm above an A4 sheet, which reads as a tube rather than
+  // a fold. At 0.06 it stands 54px and reads as paper, and it halves the gap
+  // between where the flap is and where it renders.
+  maxRadius: 0.06,
   relaxFrom: 0.62,
 };
 

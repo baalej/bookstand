@@ -153,7 +153,10 @@ describe('curl radius', () => {
   const early = 0.2;
 
   it('follows the size of the fold while the page is still lifting', () => {
-    const travel = 200;
+    // Below the stiffness ceiling, so this exercises the size term rather
+    // than the clamp. On this page the ceiling bites above ~150px of travel.
+    const travel = 100;
+    expect(travel / (2 * Math.PI)).toBeLessThan(m.width * defaultCurl.maxRadius);
     expect(curlRadius(m, travel, early, defaultCurl)).toBeCloseTo(travel / (2 * Math.PI), 8);
   });
 
