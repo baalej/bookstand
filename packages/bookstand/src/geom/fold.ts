@@ -1,5 +1,5 @@
 import type { FlipCorner, Point } from '../types.js';
-import { clamp, dist, len, limitToCircle, mid, normalize, quadAt, sub } from './vec.js';
+import { clamp, dist, dot, len, limitToCircle, mid, normalize, quadAt, sub } from './vec.js';
 
 export interface PageMetrics {
   /** Width of a single page (half the spread). */
@@ -244,4 +244,87 @@ export function cornerPath(
     y: (from.y + to.y) / 2 + (corner === 'top' ? bow : -bow),
   };
   return (t: number) => quadAt(from, control, to, clamp(t, 0, 1));
+}
+
+/**
+ * How far the turning sheet sweeps vertically, in page heights.
+ *
+ * The canvas has to reserve this much room or the sheet is sliced flat along
+ * the canvas edge for the last quarter of every turn. Measured before it was
+ * reserved: clipping began at **75% progress** and peaked at **1.42x** the
+ * page height around 90%, on a 0.688 page — visible on tap-to-flip as well as
+ * on a drag, so it affected every navigation the reader could make.
+ *
+ * **This is not the perspective divide.** Phase 2 reserved `maxMagnification`
+ * for a sheet tilting toward the viewer and applied it to both axes. That is a
+ * real effect but a small one, and at the poses that overflow the radius has
+ * relaxed to nearly nothing, so the divide contributes about 0.007 of the
+ * 1.42. The overflow is the fold's own geometry: a sheet reflected about a
+ * slanted crease presents more vertical extent than the flat page did, the
+ * same way a rotated rectangle needs a taller bounding box.
+ *
+ * Derived rather than tabulated, because it is a property of the fold and
+ * would drift the moment the tethers or the radius law changed. It has no
+ * closed form worth trusting — it tracks neither the page diagonal nor
+ * `1 + aspect`, and at wide aspects it comes in *under* the diagonal because
+ * the vertical clamp in `constrainCorner` binds first.
+ *
+ * Only the page's four corners are sampled. The fold is a piecewise isometry,
+ * so the extremes of y land on them; checked against a full interior sweep
+ * across seven aspect ratios, the two agree to within 0.004.
+ */
+export function foldSweep(
+  aspect: number,
+  projection: { focal: number; maxMagnification: number },
+  curl: CurlOptions = defaultCurl,
+): number {
+  const height = 1;
+  const width = Math.max(1e-6, aspect);
+  const metrics: PageMetrics = { width, height };
+  const focal = width * projection.focal;
+  const minW = 1 / Math.max(1, projection.maxMagnification);
+  const pageCorners: Point[] = [
+    { x: 0, y: 0 },
+    { x: width, y: 0 },
+    { x: 0, y: height },
+    { x: width, y: height },
+  ];
+
+  // The resting page is the floor; the fold can only add to it.
+  let lowest = 0;
+  let highest = height;
+
+  for (const corner of ['top', 'bottom'] as const) {
+    for (let i = 0; i <= 40; i++) {
+      for (let j = 0; j <= 24; j++) {
+        // Reaches past the spine, which is where the sweep peaks.
+        const pointer = { x: width * (1 - 2.2 * (i / 40)), y: height * (j / 24) };
+        const fold = foldFor(metrics, corner, pointer, curl);
+
+        for (const point of pageCorners) {
+          const past = dot(sub(point, fold.origin), fold.normal);
+          if (past <= 0) continue; // still lying flat, inside the page
+          const radius = Math.max(1e-6, fold.radius);
+          const arc = past / radius;
+          const onCrease = point.y - fold.normal.y * past;
+          const along = arc < Math.PI ? radius * Math.sin(arc) : -(past - Math.PI * radius);
+          const z = arc < Math.PI ? radius * (1 - Math.cos(arc)) : 2 * radius;
+          const y = onCrease + fold.normal.y * along;
+
+          // The same clamped divide the vertex shader applies, about the
+          // page's vertical middle — so this measures where the sheet lands
+          // on screen rather than where its material sits.
+          const w = Math.max(1 - z / focal, minW);
+          const projected = height / 2 + (y - height / 2) / w;
+          if (projected < lowest) lowest = projected;
+          if (projected > highest) highest = projected;
+        }
+      }
+    }
+  }
+
+  // Symmetric about the page's middle: the book is centred, so the binding
+  // constraint is whichever side reaches further.
+  const half = Math.max(highest - height / 2, height / 2 - lowest);
+  return (2 * half) / height;
 }

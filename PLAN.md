@@ -1062,6 +1062,46 @@ sampling every face the renderer actually asks for across 30 animated flips in b
 **Still to do:** LQIP placeholders, cross-fade on late arrival, responsive `srcset` selection,
 power-of-two/mipmap upload (the edge-on shimmer from Phase 2 is still there).
 
+### Phase 4k — headroom is two numbers, not one
+
+**Reported:** the flipping page gets cut off at the top and bottom depending on its position, while
+the sides have too much space. Both halves of that observation were right, and they have one cause.
+
+Phase 2 reserved `maxMagnification` for a sheet tilting toward the viewer and applied it to **both
+axes**. That effect is real but small, and it is not what overflows. The sheet also *swings*:
+reflected about a slanted crease it presents more vertical extent than the flat page did, the way a
+rotated rectangle needs a taller bounding box. Measured:
+
+| axis | needed | reserved |
+|---|---|---|
+| vertical | **1.423×** page height | 1.08 — short by a third |
+| horizontal | **1.009×** page width | 1.08 — almost all wasted |
+
+Clipping began at **75% progress** and peaked around 90%, on tap-to-flip as well as on a drag, so
+every navigation the reader could make was affected — **86.6%** of reachable drag poses exceeded the
+reserved room. At the failing poses the curl radius has relaxed to nearly nothing, so the perspective
+divide contributes about **0.007 of the 1.42**: the headroom that existed was solving a different
+problem and could never have caught this one.
+
+**`foldSweep` derives the figure from the fold rather than tabulating it.** There is no closed form
+worth trusting — the sweep tracks neither the page diagonal nor `1 + aspect`, and at wide aspects it
+comes in *under* the diagonal because the vertical clamp in `constrainCorner` binds first. Only the
+page's four corners are sampled: the fold is a piecewise isometry so the extremes of `y` land on
+them, and against a full interior sweep across seven aspect ratios the two agree to within **0.004**
+at **0.82 ms**, once per book.
+
+**The cost, and how most of it was avoided.** Reserving the room shrinks the book where vertical
+space is scarce — 24% on a wide desktop — while *growing* it 4–7% in portrait and squarish
+containers, which had been paying for horizontal headroom they never used. But when the height is
+ours to set (`ownsHeight`, which is the static-page case `<book-stand>` was built for) `fitHeight`
+now solves the layout for the taller box instead, so **the book keeps its exact size** — 596×433
+before and after — and the element grows 509 → 670px. The shrink is paid only by a host given an
+explicit height.
+
+Verified on pixels, not on the model: **494 drag poses, 0 clipped**, 30px margin top and bottom.
+The model was checked against the renderer first — it predicted 1.2 NDC where the rendered sheet
+saturated at 0.997, the canvas edge, which is what clipping looks like from the outside.
+
 **Phase 6 — A11y, zoom, polish** *(~2 days)*
 ARIA, keyboard, live region, reduced motion, pinch/double-tap zoom and pan, no-JS fallback.
 

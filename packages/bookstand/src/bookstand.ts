@@ -1,6 +1,6 @@
 import { buildBook, resolveStartState, type Book } from './model/book.js';
 import { FlipController, defaultMotion, type ControllerEvents, type MotionOptions } from './flip-controller.js';
-import { defaultCurl, type CurlOptions } from './geom/fold.js';
+import { defaultCurl, foldSweep, type CurlOptions } from './geom/fold.js';
 import { computeLayout, defaultLayout, type Layout } from './layout.js';
 import type { RenderOptions } from './render/webgl-renderer.js';
 import { WebGLRenderer, defaultRender } from './render/webgl-renderer.js';
@@ -48,7 +48,7 @@ export class Bookstand {
   private readonly pointer: PointerInput;
   private readonly options: Required<Pick<BookstandOptions, 'aspect' | 'maxDpr'>> & {
     padding: number;
-    headroom: number;
+    headroom: { x: number; y: number };
   };
   private layout: Layout;
   /** True when the author gave the host no height, so we maintain one. */
@@ -73,9 +73,21 @@ export class Bookstand {
       aspect: options.aspect ?? intrinsic ?? defaultLayout.aspect,
       maxDpr: options.maxDpr ?? 2,
       padding: options.padding ?? defaultLayout.padding,
-      // Derived from the renderer, never configured separately: if these two
-      // drift apart the sheet clips against the canvas edge mid-flip.
-      headroom: render.maxMagnification,
+      // Derived, never configured separately: if these drift from what the
+      // renderer and the fold actually do, the sheet clips against the canvas
+      // edge mid-flip.
+      //
+      // x only has to cover the perspective divide. y has to cover the whole
+      // sweep of the turning sheet, which is a much larger number and the
+      // reason this is a pair rather than a scalar.
+      headroom: {
+        x: render.maxMagnification,
+        y: foldSweep(
+          options.aspect ?? intrinsic ?? defaultLayout.aspect,
+          render,
+          { ...defaultCurl, ...options.curl },
+        ),
+      },
     };
 
     // Measured *before* the canvas exists, and that ordering is the whole
@@ -100,9 +112,11 @@ export class Bookstand {
     // renders wrong, through a feedback loop between the canvas and its parent
     // rather than through anything anyone chose.
     //
-    // The spread's own ratio is the right target because `computeLayout` scales
-    // padding and headroom equally in both axes, so a host of exactly this
-    // shape leaves the book touching all four edges of its box.
+    // The target ratio carries the headroom, so an element we size ourselves
+    // grows to fit the sheet's sweep rather than making the book smaller to
+    // survive it. On a static page that is the better half of the trade: the
+    // element takes more vertical space in the flow, which is cheap, instead
+    // of the book shrinking by a quarter, which is what the reader sees.
     //
     // A pixel height rather than `aspect-ratio`, deliberately: `aspect-ratio`
     // says this far more clearly but lands in Safari 15, and §9 of the plan
@@ -217,7 +231,11 @@ export class Bookstand {
   private fitHeight(): void {
     if (!this.ownsHeight) return;
     const rect = this.host.getBoundingClientRect();
-    const wanted = rect.width / (this.options.aspect * 2);
+    // Solve `computeLayout` for the height at which the book is exactly as
+    // wide as the width allows: the two headrooms cancel out of the spread
+    // ratio, leaving the taller box the sweep needs.
+    const { x, y } = this.options.headroom;
+    const wanted = (rect.width * y) / (x * this.options.aspect * 2);
     if (wanted > 0 && Math.abs(rect.height - wanted) > 0.5) {
       this.host.style.height = `${wanted}px`;
     }
