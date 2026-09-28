@@ -55,7 +55,7 @@ export { computeLayout, defaultLayout } from './layout.js';
 
 export type { RenderOptions } from './render/webgl-renderer.js';
 export { WebGLRenderer, defaultRender } from './render/webgl-renderer.js';
-export { TextureStore } from './render/textures.js';
+export { TextureStore, defaultTextureLimit } from './render/textures.js';
 
 export type { BookstandOptions } from './bookstand.js';
 export { Bookstand } from './bookstand.js';

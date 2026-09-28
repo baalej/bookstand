@@ -4,7 +4,7 @@ import { defaultCurl, type CurlOptions } from './geom/fold.js';
 import { computeLayout, defaultLayout, type Layout } from './layout.js';
 import type { RenderOptions } from './render/webgl-renderer.js';
 import { WebGLRenderer, defaultRender } from './render/webgl-renderer.js';
-import { TextureStore } from './render/textures.js';
+import { TextureStore, defaultTextureLimit } from './render/textures.js';
 import { PointerInput } from './input/pointer.js';
 import { gesture } from './motion/tokens.js';
 import type { BookInput, FlipCorner } from './types.js';
@@ -19,6 +19,14 @@ export interface BookstandOptions extends BookInput {
   render?: Partial<RenderOptions>;
   /** Cap on device pixel ratio. 2 is plenty for scans and halves the fill cost on 3× phones. */
   maxDpr?: number;
+  /**
+   * How many page textures to keep on the GPU.
+   *
+   * Must be at least the preload window — six faces — or the store spends
+   * every navigation evicting a page it is about to need again. Raising it
+   * trades memory for fewer re-uploads when the reader changes direction.
+   */
+  textureLimit?: number;
   interactions?: {
     /** Grab a page and turn it by hand. The reason this library exists. */
     drag?: boolean;
@@ -104,7 +112,11 @@ export class Bookstand {
     this.ownsHeight = authoredHeight === 0;
 
     this.renderer = new WebGLRenderer(this.canvas, render);
-    this.textures = new TextureStore(this.renderer.gl, () => this.schedule());
+    this.textures = new TextureStore(
+      this.renderer.gl,
+      () => this.schedule(),
+      options.textureLimit ?? defaultTextureLimit,
+    );
 
     this.layout = this.measure();
     this.controller = new FlipController(

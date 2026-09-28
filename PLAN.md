@@ -1024,8 +1024,43 @@ projection, the blur and the choice of receivers have all now been tried and are
 page-thickness stack, power-of-two/mipmap upload (the edge-on aliasing from Phase 2 is still there),
 anisotropic filtering, visual regression snapshots.
 
-**Phase 5 — Image pipeline** *(~2 days)*
-Preload window, `decode()` gating, LQIP, cross-fade, texture LRU, responsive sources.
+**Phase 5 — Image pipeline** — 🟡 *texture LRU done · 225 tests passing*
+
+**The store only ever grew.** Measured by walking a synthetic 120-spread book: **63 textures and
+136 MB after skimming 30 spreads**, still climbing, projecting to **522 MB for a full read of a
+300-page book** — past the point where mobile Safari discards the WebGL context and the book dies in
+the reader's hands. §5 specified "an LRU cache bounded by count (default 8)" in the first draft and
+it was never built; nothing failed, because nothing was measured.
+
+Bounded now, at **17 MB flat regardless of book length**. The limit is 8 because a frame can draw
+six faces — the preload window is the current spread plus one either side — and eight leaves enough
+headroom that reversing direction finds the page just left still resident.
+
+> **The live set is never evicted, whatever the limit says.** `request` receives the whole preload
+> window, so the retention set and the prefetch window are the same thing by construction rather
+> than by two rules that could drift. Eviction *skips* live entries rather than stopping at one:
+> with a limit smaller than the window the store stays over budget, which is the right way to fail.
+> A cache that blanks a visible page has failed at the only thing it must not do.
+
+Verified in the browser, not just against a stub: 49 navigations including reversals, oscillation
+across a boundary and far jumps — **0 blank pages**. Then instrumented at the draw call itself,
+sampling every face the renderer actually asks for across 30 animated flips in both directions,
+`movingFront` and `movingBack` included — **0 misses**. Frame time unchanged at 0.23 ms; bundle
++118 B gzipped.
+
+**Measured and deliberately not done:**
+
+- **Mesh reduction.** 160×120 → 64×48 is 6.25× fewer triangles and moves only 305 pixels, 0.05% of
+  the frame. It also saves **0.117 ms — 0.7% of a 16.7 ms budget**, on a renderer already at 0.23 ms.
+  Not the bottleneck, and the mesh was raised to 160×120 in Phase 4b to answer a silhouette
+  complaint. Spending known quality on unmeasurable speed is the wrong trade.
+- **Async texture upload.** `texImage2D` of a 624×907 scan costs 4.6–6.9 ms and lands during the
+  settle, which sounds alarming. Instrumented across a full flip: **median 16.7 ms, p95 16.7 ms,
+  zero frames over 20 ms.** It is absorbed. A latent risk on slower hardware, not a present defect,
+  and not worth `createImageBitmap` machinery until a device shows it dropping a frame.
+
+**Still to do:** LQIP placeholders, cross-fade on late arrival, responsive `srcset` selection,
+power-of-two/mipmap upload (the edge-on shimmer from Phase 2 is still there).
 
 **Phase 6 — A11y, zoom, polish** *(~2 days)*
 ARIA, keyboard, live region, reduced motion, pinch/double-tap zoom and pan, no-JS fallback.
@@ -1129,6 +1164,12 @@ and commit + tag by hand; there is no flag that makes the automatic path work he
 sequence on the way here: an interactive publish attempt 403'd instantly with no OTP prompt (there
 is no factor to challenge for), and a granular access token with "bypass 2FA" enabled also failed,
 because bypassing 2FA presupposes an account that has some to bypass. Enabling 2FA resolved both.
+
+**`0.1.1` is live**, published entirely by the workflow above from tag `v0.1.1`, with a verified SLSA
+provenance attestation attached — installed fresh from the real registry afterward, both entry points
+resolve, `bookstand/element` registers the tag correctly. The version never got a third attempt: the
+`repository` fix landed as a new commit and the same tag was moved onto it (`git tag -d` + re-tag),
+rather than spending a version number on a release that had never actually reached the registry.
 
 ---
 
