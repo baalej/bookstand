@@ -101,6 +101,18 @@ m.margin      // { x, y }           host minus book, both sides together
 m.idealHeight //                    the height that wastes nothing at this width
 ```
 
+`metrics` is read live, so it is never stale. To know *when* it changed —
+which is what you want if the surrounding layout is sized against the book:
+
+```js
+book.on('resize', (m) => {
+  caption.style.width = `${m.book.width}px`;
+});
+```
+
+It fires once per actual change, after the new layout has settled, and not at
+all if a re-measure produced the same size.
+
 **The margin is reserve, not slack.** A turning page sweeps well outside the
 book's rectangle — up to **1.42× the page height** — and that room is where it
 goes. Shrink the host to reclaim it and the sheet gets sliced flat against the

@@ -57,5 +57,5 @@ export type { RenderOptions } from './render/webgl-renderer.js';
 export { WebGLRenderer, defaultRender } from './render/webgl-renderer.js';
 export { TextureStore, defaultTextureLimit } from './render/textures.js';
 
-export type { BookstandOptions, BookstandMetrics } from './bookstand.js';
+export type { BookstandOptions, BookstandMetrics, BookstandEvents } from './bookstand.js';
 export { Bookstand } from './bookstand.js';

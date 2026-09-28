@@ -177,3 +177,38 @@ describe('start-at attribute', () => {
     },
   );
 });
+
+describe('the resize event', () => {
+  const code = source('bookstand.ts');
+
+  it('routes resize away from the controller', () => {
+    // `on` forwards to the controller's emitter, which accepts any event name
+    // and silently never fires it. Before this existed, `book.on('resize')`
+    // in plain JS registered a listener that was never called and threw no
+    // error — TypeScript rejected it, a static page did not.
+    expect(code).toMatch(/if \(event === 'resize'\)/);
+    expect(code, 'resize has its own emitter').toMatch(/events\.on\('resize'/);
+  });
+
+  it('announces after the layout settles, not before', () => {
+    // A listener reading `metrics` in the handler must see the new size, not
+    // the one being replaced.
+    const body = code.slice(code.indexOf('private onResize('));
+    const measured = body.indexOf('this.layout = this.measure()');
+    const emitted = body.indexOf("this.events.emit('resize'");
+    expect(measured).toBeGreaterThan(-1);
+    expect(emitted).toBeGreaterThan(measured);
+  });
+
+  it('stays quiet when nothing moved', () => {
+    // Where we own the height, `fitHeight` writes it and that write re-enters
+    // onResize, so every real resize arrives twice — measured at four
+    // callbacks for two width changes, the second of each pair identical.
+    expect(code, 'expected a change guard').toMatch(/signature === this\.announced/);
+  });
+
+  it('drops its listeners on destroy', () => {
+    const body = code.slice(code.indexOf('destroy(): void'));
+    expect(body).toMatch(/events\.clear\(\)/);
+  });
+});

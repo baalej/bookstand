@@ -7,6 +7,7 @@ import { WebGLRenderer, defaultRender } from './render/webgl-renderer.js';
 import { TextureStore, defaultTextureLimit } from './render/textures.js';
 import { PointerInput } from './input/pointer.js';
 import { gesture } from './motion/tokens.js';
+import { Emitter } from './events/emitter.js';
 import type { BookInput, FlipCorner } from './types.js';
 
 export interface BookstandOptions extends BookInput {
@@ -66,6 +67,26 @@ export interface BookstandMetrics {
   idealHeight: number;
 }
 
+/**
+ * Everything `on` accepts: the controller's page events, plus layout.
+ *
+ * Merged rather than left to two subscription methods, because the split is
+ * an implementation detail — a reader of `book.on(...)` should not have to
+ * know that `change` comes from the flip controller and `resize` from a
+ * ResizeObserver.
+ */
+export type BookstandEvents = ControllerEvents & {
+  /**
+   * The book has been re-laid-out, with the metrics that produced it.
+   *
+   * `metrics` is a live getter and never goes stale, so this is not about
+   * freshness — it is about knowing *when* to look, which matters if the
+   * surrounding layout is sized against the book. Without it the only option
+   * was a second ResizeObserver watching the same element we already watch.
+   */
+  resize: BookstandMetrics;
+};
+
 export class Bookstand {
   readonly book: Book;
   private readonly controller: FlipController;
@@ -73,6 +94,9 @@ export class Bookstand {
   private readonly textures: TextureStore;
   private readonly canvas: HTMLCanvasElement;
   private readonly observer: ResizeObserver;
+  private readonly events = new Emitter<{ resize: BookstandMetrics }>();
+  /** Last size announced, so an unchanged re-measure stays quiet. */
+  private announced = '';
   private readonly pointer: PointerInput;
   private readonly options: Required<Pick<BookstandOptions, 'aspect' | 'maxDpr'>> & {
     padding: number;
@@ -257,11 +281,25 @@ export class Bookstand {
     this.schedule();
   }
 
-  on<K extends keyof ControllerEvents>(
+  /**
+   * Subscribe to a page or layout event. Returns an unsubscribe function.
+   *
+   * Routed by name rather than merged into one emitter: page events belong to
+   * the controller, which knows nothing about the DOM, and layout events come
+   * from the ResizeObserver here. Forwarding one into the other would buy a
+   * single `Map` at the cost of a hop that exists only to look tidy.
+   */
+  on<K extends keyof BookstandEvents>(
     event: K,
-    fn: (payload: ControllerEvents[K]) => void,
+    fn: (payload: BookstandEvents[K]) => void,
   ): () => void {
-    return this.controller.on(event, fn);
+    if (event === 'resize') {
+      return this.events.on('resize', fn as (payload: BookstandMetrics) => void);
+    }
+    return this.controller.on(
+      event as keyof ControllerEvents,
+      fn as (payload: ControllerEvents[keyof ControllerEvents]) => void,
+    );
   }
 
   destroy(): void {
@@ -272,6 +310,7 @@ export class Bookstand {
     this.pointer.destroy();
     this.host.removeEventListener('keydown', this.onKeyDown);
     this.controller.destroy();
+    this.events.clear();
     this.textures.destroy();
     this.renderer.destroy();
     this.canvas.remove();
@@ -316,6 +355,21 @@ export class Bookstand {
       height: this.layout.pageHeight,
     });
     this.schedule();
+
+    // After the layout is settled, so a listener reading `metrics` — or the
+    // payload, which is the same thing — sees the new size rather than the
+    // one being replaced.
+    //
+    // Only when something moved. Where we own the height, `fitHeight` writes
+    // it and that write re-enters here, so every real resize arrives twice —
+    // measured at four callbacks for two width changes, the second of each
+    // pair carrying values identical to the first. Firing both would hand a
+    // listener that is itself adjusting layout a spurious second pass.
+    const metrics = this.metrics;
+    const signature = `${metrics.host.width}x${metrics.host.height}:${metrics.book.width}`;
+    if (signature === this.announced) return;
+    this.announced = signature;
+    this.events.emit('resize', metrics);
   }
 
   /** Load the current spread and its immediate neighbours. Phase 5 widens this. */
