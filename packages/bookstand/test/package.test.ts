@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -23,6 +23,14 @@ const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as
   exports: Record<string, string | Record<string, string>>;
 };
 const source = (path: string): string => readFileSync(join(ROOT, 'src', path), 'utf8');
+
+function sourceFiles(dir: string): string[] {
+  return readdirSync(dir).flatMap((entry) => {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) return sourceFiles(full);
+    return full.endsWith('.ts') ? [full] : [];
+  });
+}
 
 describe('what gets published', () => {
   // These are the failures you cannot see locally: everything works from the
@@ -58,6 +66,73 @@ describe('what gets published', () => {
     // throw — an uncaught error here takes down the whole module graph.
     expect(source('element.ts')).toMatch(/customElements\.get\(TAG\)/);
     expect(source('element.ts')).toMatch(/typeof customElements !== 'undefined'/);
+  });
+});
+
+describe('attribution', () => {
+  // StPageFlip (MIT, Oleg Litovski / Nodlik) is where this library's fold
+  // geometry comes from. The model was re-derived rather than copied, so no
+  // copyright notice has to travel with it — but the credit is owed regardless
+  // of what the licence compels, and the source comments reference it often
+  // enough that a reader would rightly wonder if the README did not say so.
+  const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
+
+  it('credits StPageFlip in the README a consumer actually gets', () => {
+    expect(manifest.files, 'the README must ship, or the credit ships nowhere').toContain(
+      'README.md',
+    );
+    expect(readme).toMatch(/StPageFlip/);
+    // The person, not the handle. `Nodlik` alone would be satisfied by the
+    // repository URL below, which is how this assertion first passed while
+    // saying nothing at all.
+    expect(readme, 'name the author, not just the project').toMatch(/Oleg\s+Litovski/);
+    expect(readme, 'state the licence').toMatch(/MIT/);
+    expect(readme, 'link somewhere a reader can verify it').toMatch(
+      /github\.com\/Nodlik\/StPageFlip/,
+    );
+    // The two claims that keep the credit honest in both directions.
+    //
+    // Matched across whitespace, because prose wraps: the point is that the
+    // sentence is present, not that it fits on one line. A guard that forces
+    // the README to be reflowed around a regex is a guard nobody will keep.
+    expect(readme, 'say plainly that no source was copied').toMatch(/no\s+StPageFlip\s+source/i);
+    expect(readme, 'say what it is better at, not only what we changed').toMatch(
+      /StPageFlip\s+is\s+the\s+better\s+tool/i,
+    );
+  });
+
+  it('does not miscast StPageFlip as the text-only one', () => {
+    // The tempting shorthand is "we do images, they do text". It is wrong:
+    // StPageFlip exposes loadFromImages as well as loadFromHTML — verified
+    // against the published 2.0.7 bundle. The real axis is the renderer. DOM
+    // elements can hold live HTML *or* images and cannot bend; WebGL textures
+    // must be bitmaps and can. Saying it the short way would misstate someone
+    // else's project in the very section written to avoid doing that.
+    expect(readme, 'name the axis that actually separates them').toMatch(/DOM\s+element/i);
+    expect(readme, 'StPageFlip takes images too, and should be said to').toMatch(
+      /live\s+HTML\s+\*?\*?or\*?\*?\s+(an\s+)?image/i,
+    );
+  });
+
+  it('warns that a page of text is a page of pixels', () => {
+    // The consequence a reader most needs before committing: text on a page
+    // cannot be selected or searched, and reaches a screen reader only through
+    // `alt`. Finding that out after building the book is too late.
+    expect(readme).toMatch(/selected/i);
+    expect(readme, 'point at alt as the accessible content').toMatch(/alt/);
+    expect(readme, 'say when to choose the other one').toMatch(
+      /content\s+rather\s+than\s+pictures/i,
+    );
+  });
+
+  it('vendors no third-party source into the package', () => {
+    // The comparison harness pulls the published bundle at runtime and is
+    // gitignored. If a copy ever lands under src/, the claim above becomes
+    // false and the MIT notice obligation becomes real.
+    const vendored = sourceFiles(join(ROOT, 'src')).filter((file) =>
+      /Copyright|@license|StPageFlip is licensed/i.test(readFileSync(file, 'utf8')),
+    );
+    expect(vendored, 'third-party code under src/ would need its notice carried').toEqual([]);
   });
 });
 
