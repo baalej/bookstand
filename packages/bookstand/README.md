@@ -87,6 +87,31 @@ book-stand { max-width: 44rem; margin: 2rem auto; }
 **You do not have to give it a height.** With none, it holds itself at the spread's own ratio, so a
 width is enough. Give it a height and it uses that instead, fitting the book inside.
 
+### Fitting it to your layout
+
+Give it a width and no height and it works the rest out — that is already the
+tightest fit. If you need the numbers, to align something to the book or to size the host yourself:
+
+```js
+const m = document.querySelector('book-stand').book.metrics;
+
+m.book        // { width, height }  the book at rest
+m.host        // { width, height }  the box you gave it
+m.margin      // { x, y }           host minus book, both sides together
+m.idealHeight //                    the height that wastes nothing at this width
+```
+
+**The margin is reserve, not slack.** A turning page sweeps well outside the
+book's rectangle — up to **1.42× the page height** — and that room is where it
+goes. Shrink the host to reclaim it and the sheet gets sliced flat against the
+canvas edge for the last quarter of every turn. Size against `idealHeight`
+instead: at that height the book is as large as the width allows *and* the
+sweep still fits.
+
+On a wide host the horizontal margin also carries whatever the page's fixed
+aspect ratio leaves over, which genuinely is unusable — the book cannot get
+wider without getting taller.
+
 ### Attributes
 
 | | |

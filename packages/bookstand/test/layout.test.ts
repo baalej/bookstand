@@ -141,3 +141,42 @@ describe('headroom, per axis', () => {
     expect(l.bookWidth).toBeLessThanOrEqual(1400);
   });
 });
+
+describe('metrics, for laying out around the book', () => {
+  // The margin is reserve, not slack. Exposing it without saying so invites
+  // an author to shrink the host until the sheet clips again, which is the
+  // defect this whole section exists to have fixed.
+
+  it('reports a height at which the sweep still fits', () => {
+    // idealHeight is the contract: a host of this height makes the book as
+    // large as the width allows *and* leaves the sheet its room.
+    const { x, y } = foldSweep(aspect, defaultRender);
+    const width = 700;
+    const idealHeight = (width * y) / (x * aspect * 2);
+
+    const l = computeLayout(width, idealHeight, opts({ headroom: { x, y } }));
+    expect(l.bookHeight * y).toBeLessThanOrEqual(idealHeight + 1e-6);
+    expect(l.bookWidth * x).toBeLessThanOrEqual(width + 1e-6);
+  });
+
+  it('wastes nothing at the ideal height', () => {
+    // Neither axis should be the slack one: at the ideal height the width
+    // constraint and the height constraint meet.
+    const { x, y } = foldSweep(aspect, defaultRender);
+    const width = 700;
+    const ideal = (width * y) / (x * aspect * 2);
+    const l = computeLayout(width, ideal, opts({ headroom: { x, y }, padding: 0 }));
+    expect(l.bookWidth * x).toBeCloseTo(width, 6);
+  });
+
+  it('gives a shorter host a smaller book rather than a clipped one', () => {
+    const { x, y } = foldSweep(aspect, defaultRender);
+    const width = 700;
+    const ideal = (width * y) / (x * aspect * 2);
+    const squashed = computeLayout(width, ideal * 0.6, opts({ headroom: { x, y } }));
+    const roomy = computeLayout(width, ideal, opts({ headroom: { x, y } }));
+    expect(squashed.bookWidth).toBeLessThan(roomy.bookWidth);
+    // ...and the sweep still fits inside what it was given.
+    expect(squashed.bookHeight * y).toBeLessThanOrEqual(ideal * 0.6 + 1e-6);
+  });
+});

@@ -38,6 +38,34 @@ export interface BookstandOptions extends BookInput {
   };
 }
 
+/**
+ * The book's footprint and the room reserved around it, in CSS pixels.
+ *
+ * All of it derives from the host's current size, so it changes with a resize.
+ */
+export interface BookstandMetrics {
+  /** The box the host element is giving us. */
+  host: { width: number; height: number };
+  /** The book at rest — two pages wide, in every state. */
+  book: { width: number; height: number };
+  /**
+   * Host minus book, per axis, across both sides together.
+   *
+   * Reserved, not spare: the turning sheet sweeps into it. On a wide host the
+   * horizontal figure also carries whatever the page's fixed aspect ratio
+   * leaves over, which genuinely is unusable — the book cannot get wider
+   * without getting taller.
+   */
+  margin: { x: number; y: number };
+  /** Multiples of the page the sheet can reach, derived from the fold. */
+  headroom: { x: number; y: number };
+  /**
+   * The host height at which the book is as large as this width allows and
+   * the sheet's sweep still fits. Set the host to it and nothing is wasted.
+   */
+  idealHeight: number;
+}
+
 export class Bookstand {
   readonly book: Book;
   private readonly controller: FlipController;
@@ -179,6 +207,37 @@ export class Bookstand {
 
   get stateIndex(): number {
     return this.controller.stateIndex;
+  }
+
+  /**
+   * Where the book actually sits inside the host, and how much room is held
+   * back around it.
+   *
+   * For laying other things out against the book — a caption, a frame, a
+   * facing column — and for sizing the host so nothing is wasted.
+   *
+   * **The margin is not slack.** Most of it is the room the turning sheet
+   * sweeps into: reclaim it by shrinking the host and the sheet is sliced
+   * flat against the canvas edge again for the last quarter of every turn.
+   * `idealHeight` is the honest number to size against, because it is the
+   * height at which the book is as large as the width permits *and* the sweep
+   * still fits. Give the host a width and no height and it is applied for you.
+   *
+   * Read it any time; it is recomputed on resize, so read it again after one.
+   */
+  get metrics(): BookstandMetrics {
+    const host = this.host.getBoundingClientRect();
+    const { x, y } = this.options.headroom;
+    return {
+      host: { width: host.width, height: host.height },
+      book: { width: this.layout.bookWidth, height: this.layout.bookHeight },
+      margin: {
+        x: Math.max(0, host.width - this.layout.bookWidth),
+        y: Math.max(0, host.height - this.layout.bookHeight),
+      },
+      headroom: { x, y },
+      idealHeight: (host.width * y) / (x * this.options.aspect * 2),
+    };
   }
 
   next(corner: FlipCorner = 'top'): boolean {
