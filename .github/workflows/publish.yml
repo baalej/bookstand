@@ -1,0 +1,73 @@
+name: Publish to npm
+
+# Fires on a version tag, not on every push to main — a commit is not a
+# release, and publishing one on every push would make every push a public,
+# permanent npm version. Push a tag (`npm version patch && git push --tags`,
+# or manually) when you actually want a release to go out.
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+# id-token is the whole mechanism: it lets this job mint a short-lived OIDC
+# token that npm exchanges for publish rights, scoped to this exact
+# org/repo/workflow-filename triple. No npm token is stored anywhere — there
+# is nothing here for a leaked secret to be, which is the entire point.
+#
+# The registry side of this trust has to be configured once, by hand, on
+# npmjs.com: package Settings → Trusted Publisher → GitHub Actions, entering
+# this repo and this file's name (`publish.yml`) exactly. That step can only
+# be done by someone with publish rights on the package; nothing in this
+# repo can do it for you.
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Trusted publishing needs npm >= 11.5.1. Rather than trust whatever
+          # a given runner image happens to bundle for a given Node version —
+          # true today, not guaranteed to stay true — the next step pins it.
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Pin npm to a version that supports trusted publishing
+        run: npm install -g npm@latest
+
+      - run: corepack enable
+
+      - run: pnpm install --frozen-lockfile
+
+      # Catches "forgot to bump the version" before it becomes a confusing
+      # registry error — npm will refuse to publish over an existing version
+      # regardless, but this fails fast and says exactly what's wrong.
+      - name: Verify the tag matches the package version
+        working-directory: packages/bookstand
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match packages/bookstand/package.json version ${PKG_VERSION}."
+            exit 1
+          fi
+
+      - run: pnpm typecheck
+      - run: pnpm test
+      # Rebuilds the bundles and re-checks the gzip budget from PLAN.md §9 —
+      # build.mjs exits non-zero over budget, which fails this step and the
+      # publish never runs.
+      - run: pnpm build
+
+      # No token, no `npm login`. In a trusted-publishing workflow with
+      # id-token: write, the npm CLI detects the OIDC token GitHub issues and
+      # exchanges it for publish rights itself; provenance is attached
+      # automatically for a public package from a public repo.
+      - name: Publish
+        working-directory: packages/bookstand
+        run: npm publish --access public
