@@ -6,6 +6,35 @@ A page is an image — a scan, a screenshot, an exported artboard. The library n
 What it does instead is make turning them feel like paper: a real cylindrical curl, a spring seeded
 with your pointer's actual release velocity, and a book that costs nothing when nobody is touching it.
 
+## Is this the right tool?
+
+**Bookstand is for books that are already pictures.** Scanned volumes, print layouts exported as
+pages, photo books, portfolios, zines, comics. Every page is uploaded to the GPU as a texture, and
+that one constraint is what buys the curl: a scan is already a bitmap, so there is nothing to
+rasterize before the mesh can bend it.
+
+**The cost of that is real and you should know it before you start.** Whatever is on the page is
+pixels:
+
+- text cannot be selected, copied, or found with ⌘F
+- screen readers get the page's `alt` text and nothing else — so write it properly, it *is* the
+  accessible content
+- nothing reflows, and nothing responds to the reader's font-size preference
+- links inside a page are not clickable
+- you need images at roughly 2× the displayed size to stay crisp
+
+If any of that is a dealbreaker, you want a DOM-based flipbook, and
+[StPageFlip](#prior-art--stpageflip) is the one to use — it renders real elements, so the text stays
+real text. The tradeoff runs the other way: a DOM element cannot bend, so its pages stay flat.
+
+|  | **Bookstand** | **StPageFlip** |
+|---|---|---|
+| Renders | WebGL textures | DOM elements |
+| A page can be | an image | live HTML **or** an image |
+| Text on a page | pixels | real, selectable text |
+| The turning sheet | curls on a deformed mesh | stays flat |
+| Reach for it when | the pages are already pictures | the pages are content |
+
 ---
 
 ## Use it on a static page
@@ -145,6 +174,38 @@ module never loads or a context cannot be created, your markup is untouched and 
 reader's own hand, but the hover peek does not.
 
 ---
+
+## Prior art — StPageFlip
+
+[**StPageFlip**](https://github.com/Nodlik/StPageFlip) by Oleg Litovski ([Nodlik](https://github.com/Nodlik)),
+MIT — the closest prior art, and the reason parts of this library look the way they do.
+
+**Its geometric model is the one used here.** The turning sheet as a rigid shape rotated about the
+dragged corner, with that corner tethered to a circle about the spine, is StPageFlip's, and it is
+right: cheap, numerically stable, and the correct silhouette. Inventing a different one would have
+produced something worse. It was **re-derived from the geometry rather than copied**, and **no
+StPageFlip source is included in this package** — but the idea is theirs and it deserves saying
+plainly rather than being left for someone to notice.
+
+StPageFlip 2.0.7 also served as a measured baseline while the drag was being built. A real working
+implementation to compare against is worth more than any specification, and several of the decisions
+recorded in [`PLAN.md`](../../PLAN.md) exist because it was possible to measure both side by side.
+
+**The differences are of aim, not of quality**, and they all follow from one decision: *what a page
+is made of*.
+
+StPageFlip renders **DOM elements**, and takes either live HTML or images — `loadFromHTML` and
+`loadFromImages` are both first-class there. Bookstand renders **WebGL textures**, so a page can only
+ever be an image. That single constraint is what makes the GPU path viable — a scan is already a
+bitmap, so it uploads directly with nothing to rasterize first — and it is also what lets the sheet
+curl on a deformed mesh instead of staying flat, because a DOM element cannot bend.
+
+Neither choice is the better one in general. A picture cannot be selected, searched or read aloud;
+an element cannot be wrapped around a cylinder. **If the pages are content rather than pictures,
+StPageFlip is the better tool and you should use it.**
+
+`demo/reference/` builds a side-by-side comparison harness. It downloads the published bundle from
+npm at runtime; that file is neither committed to this repository nor redistributed in this package.
 
 ## Development
 

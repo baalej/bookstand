@@ -503,25 +503,55 @@ growing behaviour, that behaviour belongs in the core.
 
 ## 9. Repo & tooling
 
+As built (Phase 7 collapsed the four packages into one — see there for why):
+
 ```
 bookstand/
-├─ packages/{core,element,react,svelte}/   ← renderer lives inside core
+├─ packages/bookstand/   the library; entry points "." and "./element"
 ├─ demo/                 static HTML playground — the primary dev target
-├─ docs/
-├─ reference/StPageFlip/ ← move here; excluded from build and workspace
+│  └─ reference/         side-by-side harness vs StPageFlip; the bundle is
+│                        fetched from npm at runtime and never committed
+├─ example/              the scans the demo and tests run against
+├─ README.md
 └─ PLAN.md
 ```
 
-pnpm workspaces · TypeScript strict · Vite for dev and library builds · Vitest for unit tests ·
-Playwright for interaction and visual regression · `size-limit` enforcing the budget in CI.
+pnpm workspaces · TypeScript strict, with `noUnusedLocals`/`noUnusedParameters` on · esbuild for the
+bundles and `tsc` for declarations · Vitest for unit tests · Playwright for interaction and visual
+regression *(still to come)* · a dependency-free gzip check in `build.mjs` enforcing the budget
+below, which fails the build rather than warning.
 
-**Two housekeeping notes on the current folder:**
+### Attribution — settled
+
+> Note 2 below asked for a deliberate call rather than an accident. This is the call.
+
+**No StPageFlip source is included anywhere in this repository or in the published package.** The
+fold geometry was re-derived. The published tarball contains `dist/`, `README.md` and `LICENSE` and
+nothing else, so the MIT obligation to retain a copyright notice alongside copied code is not
+triggered — there is no copied code to attach it to. Adding a `NOTICE` implying bundled third-party
+code would be *less* accurate than not having one.
+
+**What is owed regardless of licence is credit, and it is given.** The geometric model — the turning
+sheet as a rigid shape rotated about the dragged corner, the corner tethered to a circle about the
+spine — is StPageFlip's, and §1 keeps it on purpose because it is right. That is stated in the
+package README under *Prior art*, in the root README, and at the points in the source where the two
+implementations diverge (`geom/vec.ts`, `geom/fold.ts`, `motion/spring.ts`, `motion/tokens.ts`,
+`flip-controller.ts`).
+
+**Tone matters as much as accuracy.** §1 and the phase logs below are an engineering record and name
+specific defects measured in 2.0.7; that is fair comparative use and it is how the decisions here
+were arrived at. The *public* README makes the other half of the point explicit: the differences are
+of aim, not of quality, and for a flipbook that must hold live HTML content StPageFlip is the better
+tool. A reader should finish either document knowing exactly what was borrowed, what was not, and
+why the two exist.
+
+The comparison bundle in `demo/reference/` is fetched from npm at runtime by `reference/fetch.mjs`
+and is gitignored — third-party MIT code we compare against, never commit and never redistribute.
+
+**One housekeeping note on the current folder:**
 1. `StPageFlip/` contains its own `.git` directory. Once we `git init` here it will behave as an
-   unintended nested repo. Move it to `reference/` and either delete the inner `.git` or add it as a
-   proper submodule.
-2. StPageFlip is MIT. If we adapt its geometry code rather than re-derive it, we must retain its
-   copyright notice. The fold math is standard and I plan to derive it independently, but this should
-   be a deliberate call, not an accident.
+   unintended nested repo. Keep it out of the tree entirely, or add it as a proper submodule —
+   nothing in the build, the tests or the package depends on it being present.
 
 ### Browser baseline
 
