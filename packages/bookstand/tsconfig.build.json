@@ -1,7 +1,10 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "outDir": "dist",
+    // Declarations only — esbuild owns the JavaScript, because `tsc` emits one
+    // module per source file and a static page should fetch one file, not 16.
+    "emitDeclarationOnly": true,
+    "declarationDir": "dist/types",
     "rootDir": "src",
     // No ambient Node types in the shipped library. This is what stops a
     // `process.env` check or a `node:` import reaching browser code — the

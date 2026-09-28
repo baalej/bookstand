@@ -52,9 +52,12 @@ export interface FlipFrame {
   /**
    * True while this is only a hover affordance, not a page being turned.
    *
-   * A hint must not darken anything: the lifted corner is the whole message,
-   * and a shadow spreading across the page under the cursor reads as a hover
-   * highlight the book has no business having.
+   * Nothing in the renderer reads this today — the cast shadow that used to
+   * was deleted in Phase 4j. It stays because `FrameState` is the documented
+   * core-to-renderer contract and a frame lifted by a hovering cursor is
+   * genuinely different state from one the reader has committed to: a renderer
+   * that wants to treat the two differently must be able to tell them apart,
+   * and `mode` is internal to the controller. One boolean is a cheap seam.
    */
   hint: boolean;
   fold: Fold;

@@ -1,4 +1,4 @@
-import { Bookstand } from '@bookstand/core';
+import { Bookstand } from 'bookstand';
 
 const stage = document.getElementById('stage');
 const status = document.getElementById('status');

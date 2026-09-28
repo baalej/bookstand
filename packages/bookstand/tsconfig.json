@@ -8,6 +8,11 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,
+    // Dead weight should fail the build, not wait to be noticed. Turning these
+    // on found two unused imports, three dead parameters and a dead local that
+    // had been carried for three phases.
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,

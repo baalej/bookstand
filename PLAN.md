@@ -1000,8 +1000,65 @@ Preload window, `decode()` gating, LQIP, cross-fade, texture LRU, responsive sou
 **Phase 6 — A11y, zoom, polish** *(~2 days)*
 ARIA, keyboard, live region, reduced motion, pinch/double-tap zoom and pan, no-JS fallback.
 
-**Phase 7 — Distribution** *(~2 days)*
-`<book-stand>` element, React and Svelte wrappers, docs site, published examples for all three targets.
+**Phase 7 — Distribution** — 🟡 *static-HTML target done · 215 tests passing*
+
+Brought forward, because the first real consumer is a static site.
+
+**One package, not four.** `@bookstand/core` is now `bookstand`, with two entry points: `bookstand`
+for the class and `bookstand/element` for the tag. The element is ~530 B of the bundle and
+tree-shakes away when unused, so a second package bought a second version number and nothing else.
+The scope in §2 is therefore retired; React and Svelte become further entry points when they exist.
+
+**`tsc` cannot ship a static site.** It emits one ESM module per source file, so a `<script
+type="module">` would fetch sixteen of them in a waterfall and the author would have to upload the
+whole tree. esbuild now bundles the JS and `tsc` emits declarations only.
+
+> Declarations go to `dist/types/`, not next to the bundles, and that is not cosmetic. `tsc` names a
+> declaration after its source, so `dist/bookstand.d.ts` — the types for *`src/bookstand.ts`* alone —
+> would land beside `dist/bookstand.js`, the bundle of the whole index. Any tool resolving types by
+> matching filename picks the narrower one and nobody finds out for a while. Keeping them apart also
+> leaves exactly the two files a static site copies at the top of `dist`.
+
+**`"sideEffects": false` was a live bug waiting for its first bundler.** `import 'bookstand/element'`
+binds no names; registering the tag *is* the module. A blanket `false` lets a bundler drop the import
+wholesale and the element silently never upgrades. Now an allowlist, with a test asserting it names
+the element and nothing else.
+
+**Give it a width and it works out its own height.** The reported shape of this was "I want to set
+the width and placement per page". Sizing was already pure CSS on the host — the book is fitted
+inside whatever box it gets — but a host with no height took one from the *canvas's* intrinsic ratio,
+a property of the drawing buffer rather than of the book. Measured on a 700px-wide host: **350px
+tall, and a book that should be 596px rendered at 410px** — about 30% under, arrived at through a
+feedback loop between the canvas and its parent. It renders; it quietly renders wrong.
+
+The fix turns on measuring the host *before* the canvas is appended: an element whose height comes
+from its own content is zero while it is empty, which distinguishes "the author gave no height" from
+"the author gave one" with no heuristics. After: 700 wide → 509 tall → a 596px book, identical to
+setting the height by hand. A pixel height rather than `aspect-ratio`, which says it far better but
+lands in Safari 15 against the 13.1 baseline in §9 — and since JS creates the canvas anyway, there is
+no no-script case for the declarative version to win.
+
+**Budget enforced at last** (§9 asked for this in Phase 0). `build.mjs` gzips each bundle and fails
+the build over budget, with no dependency:
+
+| | gzipped | budget |
+|---|---|---|
+| `bookstand.js` | 11,823 B | 14 kB |
+| `element.js` | 12,355 B | 16 kB |
+
+**Verified on a real static page, not in a test harness**: two `<book-stand>` elements on a plain
+HTML file served by `python3 -m http.server` — one from `src="/book.json"`, one from inline config at
+`start-at="2"` — both sized by CSS alone, both mounting, a real corner drag turning the cover, and
+the `change` event crossing the element boundary. The only console error was the page's own missing
+favicon.
+
+**Still to do:** React and Svelte entry points, a docs site, and the no-renderer fallback that renders
+the images in document order (§2) — today a failed context sets `data-bookstand-error` and leaves the
+markup alone, which keeps the page working but does not yet show the book as images.
+
+**Before publishing:** `repository`, `homepage` and `bugs` are deliberately absent because the repo
+has no git remote yet; npm will warn until they are added. The name `bookstand` was free on the
+registry at the time of writing, but `npm publish` is the final word.
 
 ---
 

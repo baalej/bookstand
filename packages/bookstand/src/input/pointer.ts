@@ -181,7 +181,7 @@ export class PointerInput {
       // anything steeper than 45° was rejected and the gesture stayed dead
       // for its whole duration however far the reader kept pulling.
       if (!grab.fromCorner && Math.abs(dy) > Math.abs(dx)) {
-        this.release(event, true);
+        this.release(event);
         return;
       }
 
@@ -205,7 +205,7 @@ export class PointerInput {
 
     if (!grab.moved) {
       // Never travelled far enough to be a drag: treat as a tap.
-      this.release(event, true);
+      this.release(event);
       if (this.options.tap) {
         if (grab.direction === 'forward') this.controller.goNext(grab.corner);
         else this.controller.goPrev(grab.corner);
@@ -214,14 +214,12 @@ export class PointerInput {
       return;
     }
 
-    const layout = this.getLayout();
     const v = this.velocity.get();
     // Mirror the velocity into page-local space, matching the corner.
     const localVx = grab.direction === 'forward' ? v.x : -v.x;
-    this.release(event, false);
+    this.release(event);
     this.controller.endDrag(localVx);
     this.options.onChange();
-    void layout;
   };
 
   private onCancel = (event: PointerEvent): void => {
@@ -229,7 +227,7 @@ export class PointerInput {
     if (!grab || event.pointerId !== grab.id) return;
     // A system gesture took over. Let the page fall back rather than
     // stranding it mid-turn.
-    this.release(event, false);
+    this.release(event);
     if (grab.moved) {
       this.controller.endDrag(0);
       this.options.onChange();
@@ -256,13 +254,13 @@ export class PointerInput {
     }
   };
 
-  private release(event: PointerEvent, silent: boolean): void {
+  /** Let go of the pointer. What happens next is the caller's to decide. */
+  private release(event: PointerEvent): void {
     if (this.canvas.hasPointerCapture(event.pointerId)) {
       this.canvas.releasePointerCapture(event.pointerId);
     }
     this.grab = null;
     this.velocity.reset();
-    void silent;
   }
 
   /**

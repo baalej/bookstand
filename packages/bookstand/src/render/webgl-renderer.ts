@@ -1,6 +1,6 @@
 import type { FrameState } from '../flip-controller.js';
 import type { Layout } from '../layout.js';
-import type { FaceSlot, Point } from '../types.js';
+import type { FaceSlot } from '../types.js';
 import {
   createContext,
   createGrid,
@@ -423,9 +423,9 @@ export class WebGLRenderer {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     // Resting halves first; the turning sheet passes over them.
-    this.drawFace(frame.left, 'left', layout, textures);
-    this.drawFace(frame.right, 'right', layout, textures);
-    if (frame.flip) this.drawSheet(frame.flip, layout, textures);
+    this.drawFace(frame.left, 'left', textures);
+    this.drawFace(frame.right, 'right', textures);
+    if (frame.flip) this.drawSheet(frame.flip, textures);
   }
 
   private bindGrid(grid: Grid): void {
@@ -452,12 +452,7 @@ export class WebGLRenderer {
     return face && face.role !== 'interior' ? this.options.coverGutter : 1;
   }
 
-  private drawFace(
-    face: FaceSlot,
-    side: 'left' | 'right',
-    layout: Layout,
-    textures: TextureStore,
-  ): void {
+  private drawFace(face: FaceSlot, side: 'left' | 'right', textures: TextureStore): void {
     if (!face) return; // a reserved half draws nothing at all
     const { gl } = this;
 
@@ -480,11 +475,7 @@ export class WebGLRenderer {
     gl.drawElements(gl.TRIANGLES, this.flat.count, gl.UNSIGNED_SHORT, 0);
   }
 
-  private drawSheet(
-    flip: NonNullable<FrameState['flip']>,
-    layout: Layout,
-    textures: TextureStore,
-  ): void {
+  private drawSheet(flip: NonNullable<FrameState['flip']>, textures: TextureStore): void {
     const { gl } = this;
     const forward = flip.direction === 'forward';
     const soft = !flip.rigid;
@@ -522,7 +513,6 @@ export class WebGLRenderer {
       gl.UNSIGNED_SHORT,
       0,
     );
-    void layout;
   }
 
   destroy(): void {

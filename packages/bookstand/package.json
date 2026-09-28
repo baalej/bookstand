@@ -1,0 +1,52 @@
+{
+  "name": "bookstand",
+  "version": "0.1.0",
+  "description": "A small, fast, beautiful page-flip book for the web. WebGL, no dependencies.",
+  "keywords": [
+    "page-flip",
+    "flipbook",
+    "book",
+    "webgl",
+    "custom-element",
+    "ebook",
+    "portfolio"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/bookstand.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/bookstand.js"
+    },
+    "./element": {
+      "types": "./dist/types/element.d.ts",
+      "import": "./dist/element.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "unpkg": "./dist/element.js",
+  "jsdelivr": "./dist/element.js",
+  "sideEffects": [
+    "./dist/element.js",
+    "./src/element.ts"
+  ],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "node build.mjs && tsc -p tsconfig.build.json --emitDeclarationOnly",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}

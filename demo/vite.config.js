@@ -9,7 +9,7 @@ export default defineConfig({
   resolve: {
     alias: {
       // Point at source, not dist — edits to the core hot-reload without a build.
-      '@bookstand/core': here('../packages/core/src/index.ts'),
+      'bookstand': here('../packages/bookstand/src/index.ts'),
     },
   },
   server: { port: 5180, open: false },

@@ -466,9 +466,10 @@ describe('corner peek', () => {
     );
   });
 
-  it('marks itself a hint so nothing draws a shadow for it', () => {
-    // A hover affordance casting a shadow across the page reads as a hover
-    // highlight, which a book has no business having.
+  it('marks a hover lift as a hint, not as a turn', () => {
+    // The distinction a renderer needs: a corner lifted by a passing cursor is
+    // an affordance, and anything it draws beyond the lift itself reads as a
+    // hover highlight the book has no business having.
     const c = make(1);
     c.peekAt('forward', 'top', { x: metrics.width - 20, y: 20 });
     settle(c);

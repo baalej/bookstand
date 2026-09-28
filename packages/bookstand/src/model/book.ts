@@ -1,6 +1,5 @@
 import type {
   BookInput,
-  Face,
   FaceRole,
   FaceSlot,
   ImageSource,

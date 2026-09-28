@@ -53,6 +53,28 @@ describe('motion token discipline', () => {
   });
 });
 
+describe('source hygiene', () => {
+  it('never silences an unused binding with `void`', () => {
+    // `noUnusedLocals` and `noUnusedParameters` are on, but `void x;` reads as
+    // a use, so it is the one way dead code can still pass the compiler. It
+    // did: two `layout` parameters and a `silent` parameter rode along for
+    // three phases behind exactly this idiom, and the `silent` one was a
+    // distinction the callers had already stopped making.
+    //
+    // `void someCall()` is fine and deliberately still allowed — that is the
+    // marker for a promise nobody is awaiting. Only the bare-identifier form
+    // is banned, because it cannot mean anything else.
+    const offenders = sourceFiles(SRC)
+      .flatMap((file) =>
+        [...code(file).matchAll(/\bvoid\s+([A-Za-z_$][\w$]*)\s*;/g)].map(
+          (m) => `${file.slice(SRC.length + 1)}: void ${m[1]};`,
+        ),
+      );
+
+    expect(offenders, 'delete the binding instead of voiding it').toEqual([]);
+  });
+});
+
 describe('the renderer consumes the whole fold', () => {
   // The lesson this encodes cost a whole phase: `geom/fold.ts` computed
   // origin, normal and radius every frame and the renderer read only

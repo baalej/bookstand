@@ -43,6 +43,8 @@ export class Bookstand {
     headroom: number;
   };
   private layout: Layout;
+  /** True when the author gave the host no height, so we maintain one. */
+  private readonly ownsHeight: boolean;
   private raf = 0;
   private lastFrameTime = 0;
   private destroyed = false;
@@ -68,11 +70,38 @@ export class Bookstand {
       headroom: render.maxMagnification,
     };
 
+    // Measured *before* the canvas exists, and that ordering is the whole
+    // trick: an element whose height comes from its own content is zero while
+    // it is empty. Anything non-zero here — an explicit height, a flex or grid
+    // track, a percentage that resolved — is a height the author chose, and we
+    // leave it alone.
+    const authoredHeight = host.getBoundingClientRect().height;
+
     this.canvas = document.createElement('canvas');
     // touch-action is set by PointerInput, which owns the gesture contract.
     this.canvas.style.cssText = 'display:block;width:100%;height:100%';
     if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
     host.appendChild(this.canvas);
+
+    // Give it a width and it works out its own height.
+    //
+    // Without this the host has no height of its own, so it takes one from the
+    // canvas's intrinsic ratio — a property of the drawing buffer, not of the
+    // book. Measured on a 700px-wide host: 350px tall, and a book that should
+    // be 596px rendered at 410px, about 30% under. It renders; it quietly
+    // renders wrong, through a feedback loop between the canvas and its parent
+    // rather than through anything anyone chose.
+    //
+    // The spread's own ratio is the right target because `computeLayout` scales
+    // padding and headroom equally in both axes, so a host of exactly this
+    // shape leaves the book touching all four edges of its box.
+    //
+    // A pixel height rather than `aspect-ratio`, deliberately: `aspect-ratio`
+    // says this far more clearly but lands in Safari 15, and §9 of the plan
+    // commits to Safari 13.1. Since JS is what creates the canvas at all there
+    // is no no-script case for the declarative version to win, so the CSS
+    // property would buy nothing but a second code path and a support check.
+    this.ownsHeight = authoredHeight === 0;
 
     this.renderer = new WebGLRenderer(this.canvas, render);
     this.textures = new TextureStore(this.renderer.gl, () => this.schedule());
@@ -166,7 +195,24 @@ export class Bookstand {
 
   // ---- internals ------------------------------------------------------
 
+  /**
+   * Hold the host at the spread's ratio, when its height is ours to set.
+   *
+   * Guarded against the obvious loop: writing a height re-triggers the
+   * ResizeObserver, but the second pass finds the height already correct and
+   * writes nothing, so it settles in one extra callback.
+   */
+  private fitHeight(): void {
+    if (!this.ownsHeight) return;
+    const rect = this.host.getBoundingClientRect();
+    const wanted = rect.width / (this.options.aspect * 2);
+    if (wanted > 0 && Math.abs(rect.height - wanted) > 0.5) {
+      this.host.style.height = `${wanted}px`;
+    }
+  }
+
   private measure(): Layout {
+    this.fitHeight();
     const rect = this.host.getBoundingClientRect();
     return computeLayout(rect.width, rect.height, {
       aspect: this.options.aspect,

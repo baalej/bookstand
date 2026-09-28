@@ -10,7 +10,7 @@
     "reference:fetch": "node reference/fetch.mjs"
   },
   "dependencies": {
-    "@bookstand/core": "workspace:*"
+    "bookstand": "workspace:*"
   },
   "devDependencies": {
     "vite": "^5.4.11"
