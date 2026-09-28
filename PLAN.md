@@ -1098,9 +1098,25 @@ now solves the layout for the taller box instead, so **the book keeps its exact 
 before and after — and the element grows 509 → 670px. The shrink is paid only by a host given an
 explicit height.
 
-Verified on pixels, not on the model: **494 drag poses, 0 clipped**, 30px margin top and bottom.
-The model was checked against the renderer first — it predicted 1.2 NDC where the rendered sheet
-saturated at 0.997, the canvas edge, which is what clipping looks like from the outside.
+**The horizontal reserve was the same mistake, in the other direction.** Asked where the wide side
+margins came from, the answer decomposes: on a 1500x761 container, 120px is `padding`, 599px is
+simply unusable because the page aspect is fixed and the book is height-constrained — it cannot get
+wider without getting taller, and there is no vertical room — and 102px was the headroom reserve.
+That last part was over-sized. The binding case horizontally is not the curl at all, which reaches
+only **1.007** half-widths because the sweep is a rotation about the spine and the spine edge never
+lifts; it is a **rigid cover at about 14 degrees**, still nearly full width while already tilted
+into the magnifying part of the divide, reaching **1.033**. Reserving `maxMagnification` (1.08) was
+4.6% too generous, so `foldSweep` now returns both axes and neither is taken from the renderer's
+magnification cap.
+
+That 4.6% is invisible in a wide container, where height binds first — but on the static-page path
+it is real: the book went **596x453 to 624x453**, larger than before any of this began.
+
+Verified on pixels, not on the model: **494 drag poses, 0 clipped**, 30px margin top and bottom, and
+a further **330 poses, 0 clipped** on the `ownsHeight` path, which computes its own height and so
+had to be checked separately. The model was validated against the renderer first — it predicted 1.2
+NDC where the rendered sheet saturated at 0.997, the canvas edge, which is what clipping looks like
+from the outside.
 
 **Phase 6 — A11y, zoom, polish** *(~2 days)*
 ARIA, keyboard, live region, reduced motion, pinch/double-tap zoom and pan, no-JS fallback.

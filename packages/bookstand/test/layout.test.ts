@@ -81,28 +81,38 @@ describe('headroom, per axis', () => {
   // 0.007 of the 1.42. The sweep is the fold's own geometry, and it needs
   // very different room vertically than horizontally.
 
-  it('reserves the sheet\'s whole vertical sweep', () => {
-    const y = foldSweep(aspect, defaultRender);
-    const l = computeLayout(1400, 800, opts({ headroom: { x: 1, y }, padding: 0 }));
+  it('reserves the sheet\'s whole sweep on both axes', () => {
+    const { x, y } = foldSweep(aspect, defaultRender);
+    const l = computeLayout(1400, 800, opts({ headroom: { x, y }, padding: 0 }));
     expect(l.bookHeight * y).toBeLessThanOrEqual(800 + 1e-6);
-  });
-
-  it('reserves only the perspective divide horizontally', () => {
-    // The sweep is a rotation about the spine, and the spine edge never
-    // lifts, so the sheet stays within about a page width either side —
-    // 1.009 measured. Reserving the vertical figure here too would shrink
-    // the book for nothing, which is the waste that made the side margins
-    // conspicuous while the sheet was being cut off top and bottom.
-    const x = defaultRender.maxMagnification;
-    const l = computeLayout(1400, 800, opts({ headroom: { x, y: 1 }, padding: 0 }));
     expect(l.bookWidth * x).toBeLessThanOrEqual(1400 + 1e-6);
   });
 
   it('needs far more room vertically than horizontally', () => {
     // The asymmetry is the whole point. If these ever converge, either the
     // fold changed or someone collapsed the pair back into a scalar.
-    const y = foldSweep(aspect, defaultRender);
-    expect(y).toBeGreaterThan(defaultRender.maxMagnification * 1.2);
+    const { x, y } = foldSweep(aspect, defaultRender);
+    expect(y).toBeGreaterThan(x * 1.3);
+  });
+
+  it('takes neither axis from maxMagnification', () => {
+    // The bug, twice over: `maxMagnification` caps the perspective divide,
+    // which is a different question from how far the sheet travels. Used as
+    // a stand-in it left the vertical reserve a third short and the
+    // horizontal one 4.6% too generous.
+    const { x, y } = foldSweep(aspect, defaultRender);
+    expect(x).not.toBeCloseTo(defaultRender.maxMagnification, 2);
+    expect(y).not.toBeCloseTo(defaultRender.maxMagnification, 2);
+  });
+
+  it('is a rigid cover, not the curl, that sets the horizontal reserve', () => {
+    // A soft sheet reaches only ~1.007 half-widths, because the sweep is a
+    // rotation about the spine and the spine edge never lifts. A cover
+    // hinges instead, so it is still nearly full width while already tilted
+    // into the magnifying part of the divide.
+    const { x } = foldSweep(aspect, defaultRender);
+    expect(x).toBeGreaterThan(1.01);
+    expect(x).toBeLessThan(1.06);
   });
 
   it('derives the sweep from the fold, for any page shape', () => {
@@ -112,7 +122,7 @@ describe('headroom, per axis', () => {
     // It only has to rise with aspect and stay finite.
     let previous = 0;
     for (const a of [0.25, 0.5, 0.688, 1, 2]) {
-      const y = foldSweep(a, defaultRender);
+      const { y } = foldSweep(a, defaultRender);
       expect(y).toBeGreaterThanOrEqual(1);
       expect(y).toBeLessThan(4);
       expect(y, `sweep should grow with aspect ${a}`).toBeGreaterThan(previous);

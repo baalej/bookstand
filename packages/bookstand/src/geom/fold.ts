@@ -247,7 +247,8 @@ export function cornerPath(
 }
 
 /**
- * How far the turning sheet sweeps vertically, in page heights.
+ * How much room the turning sheet needs beyond the resting page, per axis,
+ * as a multiple of page height and page width.
  *
  * The canvas has to reserve this much room or the sheet is sliced flat along
  * the canvas edge for the last quarter of every turn. Measured before it was
@@ -272,12 +273,21 @@ export function cornerPath(
  * Only the page's four corners are sampled. The fold is a piecewise isometry,
  * so the extremes of y land on them; checked against a full interior sweep
  * across seven aspect ratios, the two agree to within 0.004.
+ *
+ * **Horizontally the binding case is a rigid cover, not the curl.** A soft
+ * sheet reaches only 1.007 half-widths, because the sweep is a rotation about
+ * the spine and the spine edge never lifts. A cover hinges instead, so it is
+ * still nearly full width while already tilted far enough to be magnified —
+ * worst at about 14 degrees, reaching 1.033. Reserving `maxMagnification`
+ * (1.08) for this was over by 4.6%, and it was the same mistake as the
+ * vertical one: treating the renderer's magnification cap as a stand-in for
+ * how far the sheet actually goes.
  */
 export function foldSweep(
   aspect: number,
   projection: { focal: number; maxMagnification: number },
   curl: CurlOptions = defaultCurl,
-): number {
+): { x: number; y: number } {
   const height = 1;
   const width = Math.max(1e-6, aspect);
   const metrics: PageMetrics = { width, height };
@@ -293,6 +303,8 @@ export function foldSweep(
   // The resting page is the floor; the fold can only add to it.
   let lowest = 0;
   let highest = height;
+  // Half-widths, measured from the spine. The page itself is 1.
+  let widest = 1;
 
   for (const corner of ['top', 'bottom'] as const) {
     for (let i = 0; i <= 40; i++) {
@@ -318,13 +330,29 @@ export function foldSweep(
           const projected = height / 2 + (y - height / 2) / w;
           if (projected < lowest) lowest = projected;
           if (projected > highest) highest = projected;
+
+          const onCreaseX = point.x - fold.normal.x * past;
+          const across = Math.abs((onCreaseX + fold.normal.x * along) / w) / width;
+          if (across > widest) widest = across;
         }
       }
     }
   }
 
+  // A rigid cover hinges about the spine rather than curling, which keeps it
+  // near full width while it tilts into the magnifying part of the divide.
+  // Swept directly: it is one angle, not a fold, so there is nothing to
+  // sample over but the hinge itself.
+  for (let i = 0; i <= 180; i++) {
+    const angle = (Math.PI * i) / 180;
+    const z = width * Math.sin(angle);
+    const w = Math.max(1 - z / focal, minW);
+    const across = Math.abs((width * Math.cos(angle)) / w) / width;
+    if (across > widest) widest = across;
+  }
+
   // Symmetric about the page's middle: the book is centred, so the binding
   // constraint is whichever side reaches further.
   const half = Math.max(highest - height / 2, height / 2 - lowest);
-  return (2 * half) / height;
+  return { x: widest, y: (2 * half) / height };
 }

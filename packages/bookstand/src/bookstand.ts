@@ -77,17 +77,16 @@ export class Bookstand {
       // renderer and the fold actually do, the sheet clips against the canvas
       // edge mid-flip.
       //
-      // x only has to cover the perspective divide. y has to cover the whole
-      // sweep of the turning sheet, which is a much larger number and the
-      // reason this is a pair rather than a scalar.
-      headroom: {
-        x: render.maxMagnification,
-        y: foldSweep(
-          options.aspect ?? intrinsic ?? defaultLayout.aspect,
-          render,
-          { ...defaultCurl, ...options.curl },
-        ),
-      },
+      // Both axes derived from the sheet's own motion. Neither is
+      // `maxMagnification`: that caps the perspective divide, which is a
+      // different question from how far the sheet travels, and conflating the
+      // two is what left the vertical reserve a third short while the
+      // horizontal one was 4.6% too generous.
+      headroom: foldSweep(
+        options.aspect ?? intrinsic ?? defaultLayout.aspect,
+        render,
+        { ...defaultCurl, ...options.curl },
+      ),
     };
 
     // Measured *before* the canvas exists, and that ordering is the whole
