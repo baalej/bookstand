@@ -1062,6 +1062,44 @@ sampling every face the renderer actually asks for across 30 animated flips in b
 **Still to do:** LQIP placeholders, cross-fade on late arrival, responsive `srcset` selection,
 power-of-two/mipmap upload (the edge-on shimmer from Phase 2 is still there).
 
+### Phase 3a — touch reached parity with the mouse
+
+Phase 3 measured touch latency at 6 ms against the reference's 278 ms and moved on. What it did not
+test was *which gestures survive*, and one did not.
+
+**`touch-action: pan-y` was taking the dog-ear pull.** The browser owns vertical panning under that
+value, so a corner dragged downward — established in Phase 4c as the natural motion, and fixed there
+for the mouse — was claimed as a scroll and the flip was cancelled out from under us. Measured on an
+emulated device: a mostly-downward corner pull produced **three `pointercancel`s and no flip**, a
+straight-down one four, while the identical gesture with a mouse worked.
+
+> `touch-action` cannot say *vertical is mine here but yours there*, and it is read at touch-start,
+> so it cannot be switched once the finger has landed. `preventDefault` on the touch itself can, and
+> it is the last hook that runs before the browser commits to scrolling.
+
+Scoped to the corner, which keeps both behaviours that matter — verified by vertical swipe:
+
+| from | |
+|---|---|
+| the middle of the book | page scrolls — a book inside an article is not a trap |
+| **a corner** | **page held, the fold takes it** |
+| outside the book | page scrolls |
+
+After: **0 cancels at every angle**, the dog-ear lifting and tracking across 47–141 frames of
+response, and completing when pulled far enough (81% progress → turned). A downward pull that
+*doesn't* turn the page is correct, not broken: it lifts to 18–21% and falls back, exactly as the
+mouse does.
+
+**The corner test now exists once.** It was written out three times with slightly different
+wording. Two of those — the touch guard claiming the gesture on the way in, and `fromCorner`
+deciding afterwards whether to skip the direction test — have to agree *exactly*, or a finger takes
+the gesture and is then told it was not really on a corner, leaving the page neither scrolling nor
+turning. `grabsCorner` makes that unrepresentable. The peek's arming zone keeps its own, because
+whether a corner is already lifted is genuinely none of its business.
+
+**Still not addressed on touch:** pinch-zoom and double-tap-to-zoom (§7, Phase 6). A second finger
+is deliberately left to the browser.
+
 ### Phase 4k — headroom is two numbers, not one
 
 **Reported:** the flipping page gets cut off at the top and bottom depending on its position, while

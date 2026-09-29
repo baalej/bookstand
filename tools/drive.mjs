@@ -107,6 +107,71 @@ export async function launch(url, { width = 1500, height = 900, port = 9330 } = 
   return {
     evaluate,
     logs,
+    /** Raw CDP, for anything the helpers below do not cover. */
+    send,
+
+    /**
+     * Become a touch device: no mouse, no hover, a real devicePixelRatio.
+     *
+     * Emulation matters more than it looks. Without `setTouchEmulationEnabled`
+     * the page still reports a fine pointer, so `matchMedia('(hover: hover)')`
+     * and `pointerType` both lie and the peek path stays reachable — which is
+     * exactly the behaviour a touch test is trying to rule out.
+     */
+    async emulateTouch({ width = 390, height = 844, dpr = 3 } = {}) {
+      await send('Emulation.setDeviceMetricsOverride', {
+        width, height, deviceScaleFactor: dpr, mobile: true,
+      });
+      await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+      await send('Emulation.setEmitTouchEventsForMouse', { enabled: false });
+      await sleep(300);
+    },
+
+    /**
+     * A real single-finger drag: touchStart, a run of touchMoves, touchEnd.
+     *
+     * Every event carries its own CDP timestamp, so the velocity the page sees
+     * is the velocity the gesture describes rather than whatever the
+     * round-trips happened to cost.
+     */
+    async touchDrag(points, { ms = 400, hz = 60, hold = 0, release = true } = {}) {
+      const t0 = Date.now() / 1000;
+      const at = (offset) => t0 + offset / 1000;
+      const touch = (x, y) => [{ x, y, radiusX: 12, radiusY: 12, force: 1, id: 1 }];
+      const [start] = points;
+      await send('Input.dispatchTouchEvent', {
+        type: 'touchStart', touchPoints: touch(start[0], start[1]), timestamp: at(0),
+      });
+      const steps = Math.max(2, Math.round((ms / 1000) * hz));
+      for (let s = 1; s <= steps; s++) {
+        const u = (s / steps) * (points.length - 1);
+        const i = Math.min(points.length - 2, Math.floor(u));
+        const f = u - i;
+        const a = points[i], b = points[i + 1];
+        await send('Input.dispatchTouchEvent', {
+          type: 'touchMove',
+          touchPoints: touch(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f),
+          timestamp: at((ms * s) / steps),
+        });
+        await sleep(4);
+      }
+      if (hold) await sleep(hold);
+      if (release) {
+        await send('Input.dispatchTouchEvent', {
+          type: 'touchEnd', touchPoints: [], timestamp: at(ms + hold),
+        });
+      }
+    },
+
+    /** Tap: down and up with no travel. */
+    async tap(x, y) {
+      const t = Date.now() / 1000;
+      await send('Input.dispatchTouchEvent', {
+        type: 'touchStart', touchPoints: [{ x, y, radiusX: 12, radiusY: 12, force: 1, id: 1 }], timestamp: t,
+      });
+      await sleep(40);
+      await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [], timestamp: t + 0.04 });
+    },
 
     /**
      * Drag through a list of points over `ms`, interpolating at ~`hz`.

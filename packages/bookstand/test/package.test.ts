@@ -212,3 +212,51 @@ describe('the resize event', () => {
     expect(body).toMatch(/events\.clear\(\)/);
   });
 });
+
+describe('touch parity with the mouse', () => {
+  const code = source('input/pointer.ts');
+
+  it('claims vertical movement on a corner, and only there', () => {
+    // `touch-action: pan-y` gives the browser vertical panning, which is
+    // right in the middle of the page — a book inside an article must not be
+    // a scroll trap — and wrong on a corner, where pulling a dog-ear
+    // downward is the natural motion. Measured before the fix: a
+    // mostly-downward corner pull produced three pointercancels and no flip,
+    // while the identical gesture with a mouse worked.
+    expect(code, 'still let the page scroll from mid-book').toContain("touchAction = 'pan-y'");
+    expect(code, 'a corner grab has to take the gesture').toMatch(/preventDefault\(\)/);
+    // Not passive, or preventDefault is ignored and the listener is decorative.
+    expect(code).toMatch(/'touchstart',[\s\S]{0,80}passive:\s*false/);
+  });
+
+  it('decides what a corner is in exactly one place', () => {
+    // The touch guard claims the gesture from the browser on the way in, and
+    // `fromCorner` decides afterwards whether to skip the direction test. If
+    // those two drift, a finger takes the gesture and is then told it was not
+    // really on a corner — the page neither scrolls nor turns. One predicate
+    // makes that unrepresentable.
+    expect(code).toMatch(/private grabsCorner\(/);
+    expect(code.match(/this\.grabsCorner\(book\)/g) ?? [], 'both callers').toHaveLength(2);
+    // The peek's arming zone is a genuinely different question — it has no
+    // business asking whether a corner is already lifted — so it keeps its own.
+    const peek = code.slice(code.indexOf('private maybePeek('));
+    expect(peek).toMatch(/cornerNearness\(book\) < gesture\.peekZone/);
+  });
+
+  it('leaves a second finger to the browser', () => {
+    // A pinch is a zoom, not a fold.
+    expect(code).toMatch(/touches\.length !== 1/);
+  });
+
+  it('unbinds the touch listener on destroy', () => {
+    const body = code.slice(code.indexOf('destroy(): void'));
+    expect(body).toMatch(/removeEventListener\('touchstart'/);
+  });
+
+  it('never lifts a corner under a finger', () => {
+    // Peek is a hover affordance. On touch every tap would lift a corner the
+    // reader never aimed at, so it is gated on the pointer type rather than
+    // on the option, which stays true.
+    expect(code).toMatch(/pointerType !== 'mouse' && [^)]*pointerType !== 'pen'/);
+  });
+});

@@ -64,8 +64,12 @@ export class PointerInput {
     // stick forever and every later press would be swallowed by the `if
     // (this.grab) return` guard.
     canvas.addEventListener('lostpointercapture', this.onLostCapture);
+    // Not passive, because its whole job is to call preventDefault.
+    canvas.addEventListener('touchstart', this.onTouchStart, { passive: false });
     // The gesture owns horizontal movement; let the browser keep vertical
     // scrolling so a book inside a scrolling page is not a trap.
+    //
+    // `pan-y` alone is not the whole story on touch — see `onTouchStart`.
     canvas.style.touchAction = 'pan-y';
   }
 
@@ -76,7 +80,39 @@ export class PointerInput {
     this.canvas.removeEventListener('pointercancel', this.onCancel);
     this.canvas.removeEventListener('pointerleave', this.onLeave);
     this.canvas.removeEventListener('lostpointercapture', this.onLostCapture);
+    this.canvas.removeEventListener('touchstart', this.onTouchStart);
   }
+
+  /**
+   * Claim vertical movement, but only for a finger on a corner.
+   *
+   * `touch-action: pan-y` gives the browser vertical panning, which is right
+   * in the middle of the page — a book inside an article must not be a scroll
+   * trap. It is wrong on a corner: pulling a top-right dog-ear *downward* is
+   * the natural motion, established for the mouse in Phase 4c, and on touch
+   * the browser was taking the gesture instead. Measured before this existed:
+   * a mostly-downward corner pull produced **three `pointercancel`s and no
+   * flip**, and a straight-down one four — the page simply did not turn,
+   * while the identical gesture with a mouse worked.
+   *
+   * `touch-action` cannot say "vertical is mine here but yours there", and it
+   * is read at touch-start, so it cannot be switched once the finger lands.
+   * Calling `preventDefault` on the touch itself can, and it is the only hook
+   * that still runs before the browser commits to scrolling.
+   *
+   * Scoped to the same corner test that sets `fromCorner`, so the two cannot
+   * disagree about what counts as taking hold of a corner. Single touches
+   * only: a second finger is a pinch, which belongs to the browser.
+   */
+  private onTouchStart = (event: TouchEvent): void => {
+    if (!this.options.drag || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    if (!touch) return;
+    const book = this.toBook(touch.clientX, touch.clientY);
+    if (!this.insideBook(book)) return;
+    if (!this.grabsCorner(book)) return;
+    event.preventDefault();
+  };
 
   // ---- coordinate conversion -------------------------------------------
 
@@ -116,6 +152,22 @@ export class PointerInput {
   }
 
   /** Distance from the nearest outer corner, as a fraction of the page diagonal. */
+  /**
+   * Is this press taking hold of a corner?
+   *
+   * One predicate, because two callers have to agree about it exactly: the
+   * touch guard claims the gesture from the browser on the way in, and
+   * `fromCorner` decides afterwards whether to skip the direction test. Were
+   * they to drift, a finger could take the gesture and then be told it was
+   * not really on a corner — the page would neither scroll nor turn.
+   *
+   * A corner already lifted counts wherever the finger lands: the dog-ear is
+   * the affordance, and reaching for it is unambiguous.
+   */
+  private grabsCorner(book: Point): boolean {
+    return this.controller.peeking || this.cornerNearness(book) < gesture.peekZone;
+  }
+
   private cornerNearness(book: Point): number {
     const layout = this.getLayout();
     const corner = {
@@ -147,7 +199,7 @@ export class PointerInput {
       direction,
       corner,
       startLocal: this.toLocal(book, direction),
-      fromCorner: this.controller.peeking || this.cornerNearness(book) < gesture.peekZone,
+      fromCorner: this.grabsCorner(book),
       locked: false,
       moved: false,
     };

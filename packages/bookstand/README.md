@@ -212,6 +212,17 @@ reader's own hand, but the hover peek does not.
 
 ---
 
+## Touch
+
+The same gestures, on the same code path — Pointer Events throughout, so there is no separate touch
+implementation to drift. Measured on an emulated phone: **18 ms** from finger-down to the page
+moving, and a corner responds at any angle you pull it.
+
+Vertical swipes still scroll the page, *except* from a corner, where pulling a dog-ear downward is
+what you meant. A second finger is left to the browser.
+
+Not yet: pinch-zoom and double-tap-to-zoom.
+
 ## Prior art — StPageFlip
 
 [**StPageFlip**](https://github.com/Nodlik/StPageFlip) by Oleg Litovski ([Nodlik](https://github.com/Nodlik)),
