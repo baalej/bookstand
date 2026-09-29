@@ -1,6 +1,6 @@
 {
   "name": "bookstand",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "A small, fast, beautiful page-flip book for the web. WebGL, no dependencies.",
   "keywords": [
     "page-flip",

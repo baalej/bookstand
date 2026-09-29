@@ -260,3 +260,68 @@ describe('touch parity with the mouse', () => {
     expect(code).toMatch(/pointerType !== 'mouse' && [^)]*pointerType !== 'pen'/);
   });
 });
+
+describe('the README documents what it promises', () => {
+  // Written after an audit found eight gaps, including keyboard navigation —
+  // a whole feature with no mention at all. Documentation drifts silently:
+  // nothing breaks, so nobody notices until someone needs the thing.
+  //
+  // Derived from the source, never from a list. A hardcoded roster would go
+  // stale the moment a method is added, which is the same failure one level up.
+  const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
+  const documents = (name: string): boolean =>
+    new RegExp(`\\b${name.replace(/[^\w]/g, '\\$&')}\\b`).test(readme);
+
+  it('covers every public method and getter on Bookstand', () => {
+    const code = source('bookstand.ts');
+    const surface = code.slice(
+      code.indexOf('// ---- public surface'),
+      code.indexOf('// ---- internals'),
+    );
+    const members = [...surface.matchAll(/^  (?:get )?(\w+)\s*[(:<]/gm)]
+      .map((m) => m[1]!)
+      .filter((name) => name !== 'constructor');
+
+    expect(members.length, 'expected to find the public surface').toBeGreaterThan(5);
+    expect(members.filter((m) => !documents(m))).toEqual([]);
+  });
+
+  it('covers every event a caller can subscribe to', () => {
+    const controller = source('flip-controller.ts');
+    const map = controller.match(/export type ControllerEvents = \{([\s\S]*?)\n\};/)?.[1] ?? '';
+    const events = [...map.matchAll(/^\s*(\w+):/gm)].map((m) => m[1]!);
+    events.push('resize'); // added by Bookstand, not the controller
+
+    expect(events).toContain('flipstart');
+    expect(events.filter((e) => !documents(e))).toEqual([]);
+  });
+
+  it('covers every option a caller can pass', () => {
+    const code = source('bookstand.ts');
+    const block = code.match(/export interface BookstandOptions[\s\S]*?\n\}/)?.[0] ?? '';
+    const options = [...block.matchAll(/^  (\w+)\??:/gm)].map((m) => m[1]!);
+
+    expect(options).toContain('textureLimit');
+    expect(options.filter((o) => !documents(o))).toEqual([]);
+  });
+
+  it('covers every observed attribute of the element', () => {
+    const attrs = [
+      ...(source('element.ts').match(/observedAttributes = \[([^\]]+)\]/)?.[1] ?? '').matchAll(
+        /'([^']+)'/g,
+      ),
+    ].map((m) => m[1]!);
+
+    expect(attrs.length).toBeGreaterThan(0);
+    expect(attrs.filter((a) => !documents(a))).toEqual([]);
+  });
+
+  it('leads with what it is, then how to use it, then the API, then the credit', () => {
+    // The order a reader needs, and the order the attribution has to survive
+    // in: it belongs after the API, not buried below Development.
+    const order = ['Is this the right tool?', 'Using it', 'API', 'Prior art'];
+    const found = order.map((heading) => readme.indexOf(heading));
+    expect(found.every((i) => i > -1), `headings: ${order.join(', ')}`).toBe(true);
+    expect(found, 'sections out of order').toEqual([...found].sort((a, b) => a - b));
+  });
+});
