@@ -104,3 +104,14 @@ type: playbook
 **How to verify:**
 - PR that a reviewer can understand and verify
 - All decisions are documented and traceable
+
+If the feature renders data you don't control, run `/break-the-ui` before
+calling it done. A component verified only against fixtures is verified against
+data somebody chose to make it look good.
+
+**Then run Handoff** (`playbooks/playbook-handoff.md`) for the decision log,
+evidence labels, and the reply. Unique to this playbook: link the design the
+build came from, and name any place the build diverged from it and why.
+
+**Reply:** what you built, what you chose and why, how you verified it, open
+decisions. Tables for design alternatives.

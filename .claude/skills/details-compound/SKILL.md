@@ -1,6 +1,6 @@
 ---
 name: details-compound
-description: How it feels is part of whether it works. Craft is a quality gate, not a finishing pass.
+description: "Apply to anything a person looks at or touches, during design and build rather than at the end: interfaces above all, but also CLI output, error messages, docs. How it feels is the fifth quality gate. Feel means responsive, not animated."
 disable-model-invocation: true
 ---
 
@@ -11,6 +11,8 @@ disable-model-invocation: true
 **Feel means responsive, not animated.** A button that changes state instantly with no transition passes this gate. A button with a beautiful 200ms curve that doesn't acknowledge the press fails it. Motion is one way to satisfy the gate, and often not the right one.
 
 **When to apply:** Anything a person looks at or touches—interfaces above all, but also CLI output, error messages, docs. During design and build, not only at the end.
+
+**Advice is not authorization.** An audit, inspection, or review may identify places where motion could help and describe how. It does not authorize adding or changing animation. Implement motion only when the user explicitly asks for it or a supplied design/spec calls for it. During other interface work, preserve the existing motion character and use immediate, non-animated feedback when that is enough.
 
 ## Why this is a principle and not a preference
 
@@ -34,23 +36,23 @@ This gate runs once per product, not once per element, and its answer constrains
 
 Motion costs the user attention and delays their next action. Spend it only when it buys something: **feedback** (the interface confirms it heard them), **spatial consistency** (a thing leaves the way it arrived, so their model of where it went stays true), **state indication**, **continuity** (preventing a jarring appearance), or **explanation**.
 
-"It looks cool" is valid only for things seen rarely. Repetition converts motion into latency—the first time a thing animates it informs, the hundredth time it is a toll. Never animate an action the user triggers from the keyboard; they are already moving faster than the animation.
+"It looks cool" can be valid for things seen rarely. Repetition can convert motion into latency—the first time a thing animates it informs, the hundredth time it may be a toll. Avoid motion on keyboard-triggered or frequent actions by default; treat that as guidance to discuss, not permission to override an explicit user or product decision.
 
-### 2. Responsiveness is not optional; motion is.
+### 2. Responsive feedback is required; motion is optional.
 
-Anything pressable must acknowledge the press immediately. That is closer to correctness than to polish—an element that does not react reads as broken. Motion is the part you can cut. Acknowledgement is not.
+Anything pressable should acknowledge the press immediately. That is closer to correctness than to polish—an element that does not react reads as broken. The acknowledgement can be instant, visual, or animated; animation is optional.
 
 ### 3. Decide agnostically, bind to the stack last.
 
-Whether it moves, what it buys, how long it takes, where it originates, how it interrupts and exits—these are facts about human perception and transfer between platforms. The syntax does not. Do not copy values from another stack without re-deriving whether the decision behind them applies to yours. Principle: Tech-Agnostic Approach.
+Whether it moves, what it buys, how long it takes, where it originates, how it interrupts and exits—these are facts about human perception and transfer between platforms. The syntax does not. Do not copy values from another stack without re-deriving whether the decision behind them applies to yours.
 
 ### 4. Taste that lives only in your head will regress.
 
-Once the project's motion character is settled, encode it: named tokens for curves and durations, a lint rule for the failure mode you keep fixing, a component that owns the press feedback so no caller can forget it. Otherwise the next contributor—or the next agent—resets it to defaults. Principle: Encode Lessons in Structure.
+If the project has an established motion character, encode the decisions the team wants to preserve: named tokens, a lint rule for a recurring failure, or a component that owns shared feedback. Do not add motion tokens or shared animations just because an audit suggested them. Principle: Encode Lessons in Structure.
 
-### 5. Reduced motion is correctness, not charity.
+### 5. Respect reduced-motion preferences.
 
-Honor the platform's reduced-motion setting. Reduced does not mean none: keep the transitions that carry meaning, drop the ones that move things through space.
+Honor the platform's reduced-motion setting. Reduce or remove animation as appropriate, while keeping state changes understandable through immediate feedback or other non-motion cues.
 
 ## Signals to watch for
 
@@ -68,3 +70,15 @@ Honor the platform's reduced-motion setting. Reduced does not mean none: keep th
 - **Defaults as decisions**: Shipping whatever the framework does because nobody chose otherwise. A default is a decision you did not make.
 - **Craft without a budget**: Polishing the rare path while the hot path still jars. Spend attention where frequency is highest, then where stakes are.
 - **Taste by assertion**: "This feels off" with no follow-up. Name the property and the moment, or keep observing.
+
+---
+
+## Related
+
+The proof method for this gate is [Verify By Eye](../verify-by-eye/SKILL.md) — this principle decides *whether and why* something should feel a certain way, that skill establishes whether it does.
+
+To put a name to an effect before deciding on it, [Animation Vocabulary](../animation-vocabulary/SKILL.md) is the reverse lookup. Naming it is not an argument for using it.
+
+On the web, [Web Motion](../web-motion/SKILL.md) is the recipe layer underneath: this principle ships the decision and the budget, that skill ships the exact curves. It is web-only by design; add a sibling for another platform rather than forking this principle.
+
+Held in tension with [Laziness Protocol](../laziness-protocol/SKILL.md), which usually wins. The best motion decision is most often "none"; this gate asks for responsiveness, not animation.

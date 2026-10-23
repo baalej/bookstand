@@ -1,6 +1,6 @@
 ---
 name: root-causes-not-symptoms
-description: Fix the root cause, not the symptom. Trace the problem to its source.
+description: "Apply when debugging, and when the same issue appears in several places. Trace each symptom back to the first place the system went wrong and fix it there. A guard is a fix only when the state it handles is legitimate."
 disable-model-invocation: true
 ---
 
@@ -56,3 +56,15 @@ disable-model-invocation: true
 - **Copy-paste fixes**: Applying the same workaround in multiple files when the real issue is centralized.
 - **Defensive programming as a substitute for correctness**: Guards that prevent crashes but don't prevent bugs.
 - **"Good enough" fixes**: Shipping a patch that works for this case but not the underlying problem.
+
+---
+
+## Related
+
+When two fixes have already failed the same check, stop tracing and switch to [Attack the Premise](../attack-the-premise/SKILL.md) — at that point the shared assumption is the better suspect.
+
+Once the root is a bug *class* rather than a single bug, hand off to [Encode Lessons in Structure](../encode-lessons-in-structure/SKILL.md): the root fix closes the instance, the guardrail closes the class.
+
+The true root is often the data shape. [Foundational Thinking](../foundational-thinking/SKILL.md) names what a correct structure looks like.
+
+Stage the failing repro before the fix, per [Sequence Verifiable Units](../sequence-verifiable-units/SKILL.md). A fix whose repro never failed in front of you is a guess.

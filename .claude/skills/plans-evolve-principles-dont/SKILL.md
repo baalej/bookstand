@@ -1,6 +1,6 @@
 ---
 name: plans-evolve-principles-dont
-description: Plans change; quality standards don't. Re-verify when pivoting, but quality gates are fixed.
+description: "Apply when pivoting scope, when a constraint surfaces mid-implementation, or when an initial assumption proves wrong. Change the plan freely, then re-verify against the same fixed quality gates."
 disable-model-invocation: true
 ---
 
@@ -57,3 +57,13 @@ These four are not negotiable for any feature, bug fix, or refactor. No exceptio
 - **Bolting on fixes**: Layering new features onto an architecture built for old constraints.
 - **Outdated proofs**: Tests that pass but don't validate the current contract or performance.
 - **Lost context**: Pivots with no record of why or what tradeoffs were made.
+
+---
+
+## Related
+
+Names which half is fixed: the gates in [Quality Over Speed](../quality-over-speed/SKILL.md) do not move when the plan does. A pivot re-runs the proof, it does not waive it.
+
+A pivot mid-sequence re-cuts the units. See [Sequence Verifiable Units](../sequence-verifiable-units/SKILL.md) — units already verified stay verified, downstream ones get resequenced.
+
+The signals that a plan should change are usually assumptions breaking. Write them down with an early signal each, before they break.

@@ -1,6 +1,6 @@
 ---
 name: sequence-verifiable-units
-description: Break work into small units. Each independently verifiable. Sequence proves correctness.
+description: "Apply when planning multi-step work (migrations, sweeps, large refactors) and when structuring commits and PRs. Break work into small units that each end in a check, verify each before the next, and order delivery so the sequence proves itself."
 disable-model-invocation: true
 ---
 
@@ -61,3 +61,17 @@ disable-model-invocation: true
 - **Vague sequencing**: Multiple approaches that could work, but the ordering isn't justified.
 - **Deferred verification**: "We'll test this sequence once everything is done." (Test after each unit.)
 - **Large, complex units**: A unit that's hard to understand or review because it does too much.
+
+---
+
+## Related
+
+This is how [Quality Over Speed](../quality-over-speed/SKILL.md) scales past a single change: a check per unit rather than one audit at the end.
+
+A pivot re-cuts the remaining units without invalidating the verified ones. See [Plans Evolve; Principles Don't](../plans-evolve-principles-dont/SKILL.md).
+
+Canonical case: the failing repro lands before the fix in history. See [Root Causes, Not Symptoms](../root-causes-not-symptoms/SKILL.md).
+
+When a unit's check is "nothing else broke", that claim needs [Blast Radius](../blast-radius/SKILL.md) rather than a paragraph asserting it.
+
+When the units are many and similar, stop hand-applying them and build a [lever](../build-the-lever/SKILL.md) that does every unit in one pass.

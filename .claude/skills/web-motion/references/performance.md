@@ -8,6 +8,25 @@ Source: [Web Animation Performance Tier List](https://motion.dev/magazine/web-an
 
 ---
 
+## The frame budget
+
+60fps gives the browser **16.7ms** per frame. On a 120Hz screen — most current
+phones and many laptops — it's **8ms**. Design against the smaller number.
+
+For scale: a layout recalculation on a complex page can exceed 100ms. That is
+not one missed frame, it is a dozen in a row, which reads as a freeze rather
+than as jank.
+
+Two independent things decide whether you stay inside the budget, and the tiers
+below are organized around them:
+
+1. **What you animate** — how much work each frame costs.
+2. **Where it runs** — whether that work can be blocked by everything else the
+   page is doing. An A-tier animation is indistinguishable from S-tier until the
+   main thread is busy, which is exactly when the user is watching.
+
+---
+
 ## S-tier — compositor thread only
 
 **`transform`, `opacity`, `filter`, `clip-path`**, driven by CSS, WAAPI, or a library that compiles to them.
@@ -19,6 +38,7 @@ Scroll-driven animation on these properties is also hardware-accelerated, becaus
 **Caveats:**
 - Requires layer creation. Large layers can exhaust GPU memory, especially on mobile.
 - `filter: blur()` costs escalate sharply with radius. Keep animated blur under ~10px; heaviest in Safari.
+- To animate a shadow, animate `filter: drop-shadow()` rather than `box-shadow`. `box-shadow` repaints the element every frame; `drop-shadow` composites.
 - **Safari:** an animation with a `playbackRate` other than `1.0` loses hardware acceleration.
 - Chrome only recently supported `%`-based `translate` values — check your support floor if you rely on it.
 
@@ -93,6 +113,24 @@ element.style.width = width * 2 + "px";
 In React this hides inside `useLayoutEffect` — several component instances each reading `scrollWidth`/`clientWidth` and then writing a `dataset` attribute produces cascading thrashing that profiles as mysterious main-thread time.
 
 **Fix:** batch all reads, then all writes. Motion's `frame` API does this; so does any read/write scheduler.
+
+---
+
+## Animating through React state
+
+An animation library animates outside React's render cycle, so libraries are
+fine. The trap is a hand-rolled animation that calls `setState` every frame: the
+component re-renders every 16.7ms and the render alone spends the budget.
+
+```jsx
+setY(nextY);                                      // re-renders every frame
+ref.current.style.transform = `translateY(${nextY}px)`;  // touches one element
+```
+
+Where to look: a state update inside `requestAnimationFrame`, `pointermove`,
+`scroll`, or a drag handler. The signature is motion that is smooth on an empty
+page and degrades as the component tree grows — the same signature as the
+CSS-variable bomb above, and worth checking for both.
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: laziness-protocol
-description: Bias toward deletion and the smallest change that solves the problem.
+description: "Apply before adding a feature, abstraction, layer, or library, and when sizing a diff. Bias to deletion and the smallest change that solves the problem you have now."
 disable-model-invocation: true
 ---
 
@@ -55,3 +55,15 @@ disable-model-invocation: true
 - **Dead code**: Keeping old code "just in case" it's useful later.
 - **Speculative optimization**: Adding caching, batching, or async before measuring a real problem.
 - **Scope creep**: Expanding a task to include nice-to-haves instead of shipping the core.
+
+---
+
+## Related
+
+Bounds [Build the Lever](../build-the-lever/SKILL.md) (smallest script, never a framework) and [Exhaust the Design Space](../exhaust-the-design-space/SKILL.md) (prototypes are throwaway probes, and if the answer is already obvious there is nothing to explore).
+
+Bounds [Model the Domain](../model-the-domain/SKILL.md): the smallest structure that removes the branches, never a framework. An abstraction that adds indirection without deleting anything has failed both principles.
+
+Usually wins against [Details Compound](../details-compound/SKILL.md). The best motion decision is most often none at all.
+
+Does not override [Quality Over Speed](../quality-over-speed/SKILL.md). This principle cuts scope and code, never proof. "Smallest change" never means "unverified change".

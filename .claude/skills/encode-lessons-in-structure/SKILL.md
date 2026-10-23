@@ -1,6 +1,6 @@
 ---
 name: encode-lessons-in-structure
-description: Encode rules as types, lint rules, tests, schemas—not prose.
+description: "Apply after solving a hard problem, or the second time you write the same instruction or hit the same mistake. Encode the rule as a type, lint rule, schema, validation, or test, not as prose. Make illegal states unrepresentable."
 disable-model-invocation: true
 ---
 
@@ -56,3 +56,15 @@ disable-model-invocation: true
 - **Undocumented constraints**: A business rule buried in old tickets, not in the code.
 - **Type-agnostic when types matter**: Using `any`, `Object`, or strings when a specific type would prevent bugs.
 - **Lint-free codebases**: No rules enforcing project-specific constraints or patterns.
+
+---
+
+## Related
+
+Distinct from [Build the Lever](../build-the-lever/SKILL.md), which builds a tool to do or prove the work in front of you. This makes a rule automatic for everyone who comes later, whether or not they read anything.
+
+Preferred over [Code is Documentation](../code-is-documentation/SKILL.md) when a rule carries real cost if broken. Clarity relies on the reader, structure does not.
+
+The usual trigger is [Root Causes, Not Symptoms](../root-causes-not-symptoms/SKILL.md) finding a bug class rather than a bug: the root fix closes the instance, this closes the class.
+
+This principle points at your codebase. Pointed back at astack itself, it is [Log Friction](../log-friction/SKILL.md) — a step that keeps chafing is a lesson about the skill, not about the work.

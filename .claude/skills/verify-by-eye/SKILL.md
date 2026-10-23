@@ -1,6 +1,6 @@
 ---
 name: verify-by-eye
-description: The proof method for interfaces—observation performed systematically. Use it, slow it down, step the frames, real hardware, degradation passes, fresh eyes.
+description: "Apply before declaring any interface work done, when reviewing a diff that changes what a user sees, and whenever someone says it feels off and cannot say why. The proof method for interfaces: observation performed systematically, from using it as a user through the fresh-eyes pass."
 disable-model-invocation: true
 ---
 
@@ -99,3 +99,13 @@ Report findings as a table—one row per issue, citing `file:line`. For motion s
 - **Inspecting the component instead of the flow.** See pass 1.
 - **Deferring the fresh-eyes pass** because the work "feels done." It feels done because you adapted to it—which is the condition the pass exists to correct.
 - **Trusting a report you didn't observe.** If an agent or a teammate says the motion is fine, that's a hypothesis, not a result. Run the passes.
+
+---
+
+## Related
+
+The proof method for [Details Compound](../details-compound/SKILL.md) and the interface branch of [Quality Over Speed](../quality-over-speed/SKILL.md).
+
+For motion specifically, [Web Motion](../web-motion/SKILL.md) supplies the values to check findings against: this skill establishes *what you observed*, that one says whether it is within budget.
+
+Scope is wider than motion. Empty states, focus order, long content, error and loading states all fail here, and none of them are animation problems.

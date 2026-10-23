@@ -1,6 +1,6 @@
 ---
 name: build-the-lever
-description: Build tools (scripts, codemods, generators) instead of doing work by hand.
+description: "Apply to any non-trivial work: the same change across several files, a migration, a repeated task, or a change whose consistency you need to prove. Build the tool that does it or proves it (codemod, script, generator) instead of working by hand. The tool is the artifact a reviewer reruns."
 disable-model-invocation: true
 ---
 
@@ -52,3 +52,13 @@ disable-model-invocation: true
 - **Manual verification**: Checking the work by hand instead of running a script that proves it.
 - **Undocumented migrations**: Large changes with no tool that shows what changed and why.
 - **"I'll remember"**: Assuming you'll do it right next time without a tool to guide you.
+
+---
+
+## Related
+
+Distinct from [Encode Lessons in Structure](../encode-lessons-in-structure/SKILL.md), which turns a recurring instruction into a durable guardrail. This is throughput and reviewability on the work in front of you: the lever can be thrown away once the work lands, the guardrail cannot.
+
+Bounded by [Laziness Protocol](../laziness-protocol/SKILL.md): build the smallest script that does or proves the job, never a framework. The bar for building one is triviality, not repetition — a one-off still earns a lever when the lever is what makes the work checkable.
+
+For scripting the verification rather than the work, see [Quality Over Speed](../quality-over-speed/SKILL.md).

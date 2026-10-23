@@ -12,9 +12,8 @@ type: playbook
 - "How does this feature work? Walk me through it"
 
 **Principles:**
-- Code is Documentation (if unclear, the code is the problem)
+- Code is Documentation (if unclear, the code is the problem; explain in concepts, not syntax)
 - Foundational Thinking (understand the structure first)
-- Tech-Agnostic Approach (explain in terms of concepts, not syntax)
 
 ---
 
@@ -98,3 +97,11 @@ type: playbook
 **How to verify:**
 - Clarity improvement suggestions for the codebase
 - Feedback helps future readers
+
+**Then run Handoff** (`playbooks/playbook-handoff.md`) for evidence labels and
+the reply. This playbook is read-only and ships no diff, so the handoff reduces
+to the answer, its citations, and what you could not confirm.
+
+**Reply:** the answer, with every claim cited to a file and line you actually
+read. Name what you did not confirm and what would settle it. An inference from
+reading code is labeled inferred, not measured.

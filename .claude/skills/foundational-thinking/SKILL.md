@@ -1,6 +1,6 @@
 ---
 name: foundational-thinking
-description: Get data structures right first. Logic follows from structure.
+description: "Apply before writing logic: at the start of a feature, before a refactor, when designing an API or data model. Get data structures, types, and boundaries right first. Implementation becomes obvious once the structure is sound."
 disable-model-invocation: true
 ---
 
@@ -64,3 +64,15 @@ disable-model-invocation: true
 - **Implicit contracts**: Caller has to know the internals to use the API correctly.
 - **Deferred design**: Shipping with a mediocre data model and planning to redesign later.
 - **Over-coupling**: Making the shape so specific to one use case that other callers have to work around it.
+
+---
+
+## Related
+
+Says the structure comes first; [Model the Domain](../model-the-domain/SKILL.md) says which structure to reach for. Run them together.
+
+Runs before [Exhaust the Design Space](../exhaust-the-design-space/SKILL.md): name the data shape first, then compare designs over it.
+
+Does most of the work that [Code is Documentation](../code-is-documentation/SKILL.md) asks for. A sound structure reads clearly on its own.
+
+When the structure is what is broken, [Root Causes, Not Symptoms](../root-causes-not-symptoms/SKILL.md) usually lands here. A data model flaw is the most common true root.

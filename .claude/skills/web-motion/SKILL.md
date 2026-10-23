@@ -1,29 +1,33 @@
 ---
 name: web-motion
-description: Web-specific values for building and reviewing motion—tool ladder, property tiers, exact curves and durations, gestures, interruption, reduced motion, and the review bar. The recipe layer under Details Compound.
+description: "Apply when writing or reviewing motion on the web. The recipe layer under details-compound: tool ladder, compositor property tiers, exact curves and durations, gestures, interruption, reduced motion, the review bar. Web only, by design."
 disable-model-invocation: true
 ---
 
 # Web Motion
 
-**Rule:** Build the motion with the right ingredients, taken from the tables below. Never approximate a curve or a duration because it looks familiar.
+**Rule:** Use these recipes to guide motion decisions. Their values are starting points for implementation, not requirements for every interface.
+
+Words like **never** and **always** below describe strong defaults for common UI patterns. They do not override an explicit product direction; reserve hard stops for concrete accessibility, interaction, correctness, or performance problems.
 
 **When to apply:** Writing or reviewing motion on the web. This is the recipe layer—`details-compound` decides *whether and why* something moves; this decides *what it's made of*.
 
-**Scope:** Web only. Explicitly not tech-agnostic, by design. The principle above it transfers between platforms; these values do not.
+**Scope:** Web only. This is the stack layer under an agnostic principle: the decision transfers between platforms, these values do not.
 
 ## Posture
 
-Make the call and write the code. Don't present motion options as a menu. State the reasoning in one line—tool, curve, duration—and move on.
+**Separate recommendation from implementation.** An audit, inspection, or review is advisory and read-only: do not add or change animation, transitions, tokens, or motion infrastructure. Give a short, organized list of promising candidates and how each could move. If there is no clear opportunity, say so. Do not inventory every element unless asked for a comprehensive audit.
 
-The most valuable output of this skill is sometimes zero lines of code. If the frequency gate in `details-compound` says don't animate, say so plainly and offer the non-motion alternative (instant state change, a static affordance). That is a result, not a dodge.
+Implement only when the user explicitly asks to add, change, or fix motion, or when a supplied design/spec requires it. A general request to build or improve an interface is not by itself a request to add animation. When implementation is requested, make a context-sensitive recommendation, state the reasoning briefly, and write the code; ask only when a material style choice cannot be inferred from the request or existing product.
+
+The most valuable output may be a suggestion that the user can accept or ignore, or zero lines of code. Instant state changes and static affordances are valid alternatives.
 
 ## Hard rules
 
-1. **The gate comes first.** Run the frequency and purpose gates in `details-compound` before reaching for a curve. Keyboard-initiated actions are a disqualifier, not a judgment call.
-2. **No approximated values.** Every curve, duration, and spring config comes from the tables here.
+1. **The decision comes first.** Use `details-compound` to consider whether motion serves the interaction. High frequency and keyboard use are reasons to avoid motion by default, not automatic disqualifiers.
+2. **Use values as starting points.** When implementing, choose values from the tables or the project's existing tokens, then adjust for the product and interaction.
 3. **Extend the codebase's tokens; don't fork them.** If `--ease-out` or a duration scale already exists, use it. A parallel system is a defect.
-4. **Reduced motion and pointer gating ship with the animation**, not as a follow-up.
+4. **Honor reduced motion and pointer capabilities** when implementing motion; choose the appropriate behavior for the interaction and platform.
 5. **Cheapest tool that works.** Don't install a motion library for a fade.
 
 ---
@@ -81,7 +85,7 @@ If overriding fights the library at every turn, that's a signal the component is
 
 **Animate compositor properties: `transform`, `opacity`, `filter`, `clip-path`.** These four can run entirely off the main thread. Everything else triggers paint or layout—see `references/performance.md` for the full tier list and the escape hatches when you genuinely need `height`.
 
-- **Never `scale(0)`.** Start from `scale(0.9)`–`scale(0.97)` plus `opacity: 0`. Nothing in the real world appears from nothing.
+- **Avoid `scale(0)` for ordinary UI entrances.** A subtle scale such as `0.9`–`0.97` plus opacity is a common alternative; use the product's intended visual language.
 - **`transform-origin` at the trigger** for popovers, dropdowns, menus, tooltips. In Base UI, `var(--transform-origin)`. **Modals are exempt**—nothing anchors them, so they stay centered.
 - **Percentages in `translate()`** are relative to the element's own size. `translateY(100%)` moves an element by its own height whatever the content. Prefer over hardcoded pixels.
 - **`filter: blur()` is S-tier but expensive.** Keep animated blur low—under 10px is safe, and costs escalate sharply above that. Heaviest in Safari.
@@ -98,7 +102,7 @@ If overriding fights the library at every turn, that's a signal the component is
 
 ### Press feedback
 
-Any pressable element acknowledges the press. This is the one piece of motion that is closer to correctness than polish:
+Any pressable element should acknowledge the press. That feedback can be instant or animated; add motion only when requested or specified:
 
 ```css
 .button {
@@ -129,7 +133,7 @@ When two states crossfade and you can see them as two overlapping objects despit
 
 ### Stagger
 
-When a group enters together, stagger it—30–80ms between items. Longer feels slow. Stagger is decorative: never block interaction while it plays. Implementation: `references/recipes.md` §1.
+When a group enters together, consider a 30–80ms stagger if it helps people follow the order. Stagger is decorative and should never block interaction. Implementation: `references/recipes.md` §1.
 
 ## 3. Curve and duration
 
@@ -141,7 +145,7 @@ When a group enters together, stagger it—30–80ms between items. Longer feels
 | Constant motion (marquee, progress) | `linear` |
 | Default | `ease-out` |
 
-**Never `ease-in` on UI.** It starts slow, delaying the exact moment the user is watching. `ease-out` at 200ms *feels* faster than `ease-in` at 200ms.
+**Usually avoid `ease-in` on UI responses.** It starts slowly and can delay feedback; choose easing to fit the intended motion and product character.
 
 **The built-in CSS easings are too weak.** Use these:
 
@@ -225,21 +229,21 @@ const reduce = useReducedMotion();
 const closedX = reduce ? 0 : '-100%';
 ```
 
-Reduced motion means **fewer and gentler**, not zero. Keep transitions that aid comprehension; remove movement and position changes.
+Reduced-motion behavior depends on the preference and interaction. Reduce or remove motion as appropriate; preserve understandable state feedback, which can be immediate and non-animated.
 
 ---
 
-## Never ship
+## Implementation checks
 
-Self-check before finishing.
+Use these as implementation checks when motion is requested. They are defaults to guide decisions, not automatic audit findings. Flag a row when it causes a concrete usability, accessibility, correctness, or performance problem; explain context when a deliberate design choice differs.
 
-| Never | Instead |
+| Default to avoiding | Consider instead |
 |---|---|
 | `transition: all` | Name the exact properties |
 | `transform: scale(0)` entrance | `scale(0.95)` + `opacity: 0` |
 | `ease-in` on a UI element | `ease-out` or a strong custom curve |
 | Built-in `ease-out` on a deliberate animation | `cubic-bezier(0.23, 1, 0.32, 1)` |
-| Animation on a keyboard shortcut or 100+/day action | No animation |
+| Animation on a keyboard shortcut or 100+/day action | Instant feedback, unless the requested design has a reason to animate |
 | UI duration over 300ms with no reason | 150–250ms |
 | `transform-origin: center` on a trigger-anchored popover | `var(--transform-origin)` (modals exempt) |
 | Keyframes on toasts, toggles, rapidly-triggered elements | CSS transitions |
@@ -249,17 +253,17 @@ Self-check before finishing.
 | Reading and writing layout in the same loop | Batch reads, then writes |
 | Ungated `:hover` motion | `@media (hover: hover) and (pointer: fine)` |
 | Missing `prefers-reduced-motion` | Gentler variant, not zero |
-| Everything entering at once | 30–80ms stagger between items |
+| Everything entering at once | Consider a 30–80ms stagger if it improves comprehension |
 
 ## Reviewing motion
 
-Same bar, pointed at a diff instead of a blank file. The Never Ship table above is the checklist—every row is a finding.
+Review is advisory unless the user asks you to implement a fix. The implementation checks above are prompts, not a rule that every row must become a finding. Separate concrete problems from style preferences, preserve intentional product choices, and offer a suggested correction without applying it.
 
-**Posture: default to flagging. Approval is earned, not assumed.** Motion that runs but feels sluggish, lands from the wrong origin, fires too often, or drops frames is a regression, not a pass.
+**Posture: describe what you observe and why it may matter.** Motion that delays an action, obscures state, ignores reduced-motion preferences, or drops frames is a concrete concern. Timing, easing, origin, and amount of movement can be taste or product choices; recommend changes without presenting them as defects unless the context supports that judgment.
 
 ### Prefer the earlier fix
 
-When proposing a remedy, work down this list and stop at the first that applies. Deleting outranks fixing—Principle: Laziness Protocol.
+When suggesting a remedy, use this order as a guide. Deleting is often the smallest fix, but preserve motion the user or product intentionally asked for unless there is a concrete problem.
 
 1. **Delete it** — high-frequency, keyboard-triggered, or no nameable purpose
 2. **Reduce it** — shorter duration, smaller transform, fewer animated properties
@@ -273,7 +277,7 @@ When proposing a remedy, work down this list and stop at the first that applies.
 
 ### Review output
 
-**A findings table first.** One row per issue, citing `file:line`. Never a "Before:/After:" list—a reader fixing ten things needs the changes adjacent and scannable.
+For an audit or inspection, keep the output short and structured. Include only plausible opportunities, with the element/state, suggested motion, and purpose. For a code review, cite concrete findings with `file:line`; separate them from optional polish suggestions. Do not include code changes in either output unless implementation was requested.
 
 | Before | After | Why |
 |---|---|---|
@@ -283,14 +287,14 @@ When proposing a remedy, work down this list and stop at the first that applies.
 
 Keep "Why" to one line. It exists so the fix survives the next contributor's judgment.
 
-**Then a verdict.** Group remaining commentary by impact, highest first, omitting empty tiers: feel-breaking regressions → motion that should be deleted → performance → interruptibility and timing → origin and cohesion → accessibility.
+When useful, group review comments by impact: concrete usability/accessibility/performance concerns first, optional craft suggestions after.
 
-Close with an explicit call:
+If the user asks for a review verdict, make the call from concrete issues, not taste alone:
 
-- **Block** — any feel-breaking regression, motion on a keyboard or high-frequency action, `scale(0)` or `ease-in` on UI, or a layout-triggering animation with an easy compositor fix
-- **Approve** — no feel-breaking regressions, nothing that should obviously be deleted, durations and easing in bounds, interruptibility handled, reduced motion respected
+- **Block** — a concrete interaction, accessibility, correctness, or material performance issue
+- **Approve** — no blocking issues; mention optional motion refinements separately
 
-When a finding needs a value, take the exact one from the tables above rather than approximating. When you can't settle feel from code alone, say so and hand off to `verify-by-eye` rather than guessing.
+When you can't settle feel from code alone, say so and recommend a `verify-by-eye` check rather than guessing.
 
 ## References
 
@@ -306,3 +310,13 @@ Write the code. Then, in a few lines at most:
 - **What to feel-check** — if the result depends on feel you can't judge from code (a crossfade, a spring's bounce, the opacity/height balance in an entering list), say so and hand off to `verify-by-eye`.
 
 The code is the deliverable. Don't pad this into a report.
+
+---
+
+## Related
+
+The recipe layer under [Details Compound](../details-compound/SKILL.md), which owns the decision of whether anything should move at all. Run its product gate before reaching for anything here.
+
+Findings come from [Verify By Eye](../verify-by-eye/SKILL.md) — that skill establishes what you observed, this one says whether it is within budget.
+
+Web only, by design. This is the stack layer: the principle above it transfers between platforms, these values do not. Add a sibling depth skill for another platform rather than generalizing them.

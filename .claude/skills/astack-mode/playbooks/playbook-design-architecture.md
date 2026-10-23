@@ -102,3 +102,12 @@ type: playbook
 **How to verify:**
 - Design doc that implementation can follow exactly
 - All assumptions and tradeoffs are documented
+
+**Then run Handoff** (`playbooks/playbook-handoff.md`) for the decision log,
+evidence labels, and the reply. Unique to this playbook: the design is the
+deliverable, so the handoff carries types or pseudocode precise enough to build
+from without asking a question.
+
+**Reply:** the chosen design, the alternatives you rejected and what would have
+to change for one of them to win, the assumptions and their early signals, the
+interface surface. Tables for the comparison.

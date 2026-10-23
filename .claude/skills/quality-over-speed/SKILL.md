@@ -1,6 +1,6 @@
 ---
 name: quality-over-speed
-description: Optimize for verifiable, maintainable, correct code. Do not optimize for velocity.
+description: "Apply at the start of any work, in review, and under deadline pressure when tempted to ship something unproven. Optimize for verifiable, maintainable, correct code, never for velocity. Proof runs against the real artifact, not a proxy."
 disable-model-invocation: true
 ---
 
@@ -40,3 +40,17 @@ Write code so clear that a reader unfamiliar with the project understands it in 
 - **Deferred verification**: Skipping proof steps to save time. (Proof is non-negotiable.)
 - **Comment-as-documentation**: Walls of comments explaining unclear code. (Fix the code.)
 - **Speed over correctness**: Velocity theater—measuring success by commits merged instead of by reliability and user value.
+
+---
+
+## Related
+
+For interfaces, the proof method is [Verify By Eye](../verify-by-eye/SKILL.md). "It renders" is the interface equivalent of "it compiles", and this principle rejects both.
+
+[Plans Evolve; Principles Don't](../plans-evolve-principles-dont/SKILL.md) names these gates as the fixed half of the system. The plan is negotiable, the gates are not.
+
+[Sequence Verifiable Units](../sequence-verifiable-units/SKILL.md) is how this scales past a single change: proof per unit, not one audit at the end.
+
+For whether a change breaks something it doesn't touch, [Blast Radius](../blast-radius/SKILL.md) grades the proof on five rungs, where "you said so" is the bottom one.
+
+Not overridden by [Laziness Protocol](../laziness-protocol/SKILL.md). That one cuts scope, not verification.

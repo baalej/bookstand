@@ -7,10 +7,10 @@ type: playbook
 # Playbook: Craft the Interface
 
 **Use it when:**
-- "Animate this" / "make this feel alive"
+- "Animate this" / "Add a transition here" / "Implement these motion suggestions"
 - "This works but it feels cheap"
 - "Should anything here animate?"
-- "Audit the motion in this app"
+- "Audit/inspect the motion in this app, page, component, or button"
 - "Polish this before we ship"
 
 **Not for:** building the feature itself (use Build), choosing the architecture
@@ -18,9 +18,8 @@ behind it (use Design), or reviewing a diff before you ship (use Review — its
 step 4 routes into `web-motion`).
 
 **Principles:**
-- Details Compound (feel is a quality gate; the product gate runs before the element gate)
+- Details Compound (feel is a quality gate; the product gate runs before the element gate; decide in words first and bind to the stack last)
 - Laziness Protocol (the best motion decision is usually "none")
-- Tech-Agnostic Approach (decide agnostically, bind to the stack last)
 - Encode Lessons in Structure (taste that isn't encoded regresses)
 - Quality Over Speed (observation is the proof, and it isn't optional)
 
@@ -28,34 +27,37 @@ step 4 routes into `web-motion`).
 
 ## Modes
 
-Three entry points, one playbook. **Announce which mode you read the request as
-before running step 1** — one line, so a wrong read costs a word to correct
-instead of three steps to discover.
+Three entry points, one playbook. An audit or inspection is read-only and never
+authorizes animation changes. Implement motion only when the user explicitly
+asks for implementation or a supplied design/spec calls for it. **Announce
+which mode you read the request as before running step 1** — one line, so a
+wrong read costs a word to correct instead of three steps to discover.
 
 | Mode | You said | Steps | Ends with |
 |---|---|---|---|
-| **Build** | "animate this", "make this feel alive" | 1 → 2 → 3 → 4 → 5 → 6 | Implementation, or a reasoned refusal |
-| **Debug** | "this feels off", "why does this look wrong" | 1 → 5 → 3 → 4 → 5 → 6 | Findings table, then the fix |
-| **Audit** | "audit the motion", "what should animate here" | 1 → 2 → 3, stop | A prioritized plan and a do-not-animate list. No code |
+| **Build** | Explicitly asks to animate, add/change a transition, or implement motion | 1 → 2 → 3 → 4 → 5 → 6 | Requested implementation |
+| **Debug** | "This feels off", "why does this look wrong", "inspect this button" | 1 → 5 → 3, stop | Short diagnosis and suggested correction. No code |
+| **Audit** | "Audit the motion", "what could animate here" | 1 → 2 → 3, stop | Concise list of potential animations and how they could work. No code |
 
-Audit is read-only. If it produces code, it was a Build.
+Audit and Debug are read-only. If the request is ambiguous, recommend without
+changing motion; the user can ask to implement a suggestion.
 
 ---
 
 ## Step 1: Ground in the Artifact
 
 **What to do:**
-- Use the thing yourself, as a user, doing the real task end to end. On physical
-  hardware if it is ever touched
+- Use the relevant page or component as a user. Keep inspection scoped to what
+  the user asked about; do not expand a button check into a whole-app audit
 - Write down what felt wrong before analyzing why — first impressions are
   perishable and you get one
 - **Run the product gate** (`/details-compound`, requirement 0): does this
   product want motion at all? A dense internal tool, a data grid, a docs site
   may correctly have almost none. If the answer is "near-zero," say so now and
   scope the rest of the playbook to responsiveness rather than motion
-- Bind to the stack: what primitives does the platform offer, what does this
-  project already use, what tokens exist, what is the cheap path?
-  (`/web-motion`, hard rules)
+- For Build mode, bind to the stack: what primitives does the platform offer,
+  what does this project already use, what tokens exist, what is the cheap path?
+  (`/web-motion`)
 
 **How to verify:**
 - A list of specific moments that felt wrong, in the order you hit them
@@ -67,20 +69,23 @@ Audit is read-only. If it produces code, it was a Build.
 ## Step 2: Inventory the Interactions
 
 **What to do:**
-- List every state and every transition in scope — including the ones that
-  currently have no motion at all
+- In Audit mode, inspect only the requested scope and note a few promising
+  candidates. Do not inventory every transition unless asked for a comprehensive
+  audit
+- In Build mode, list the relevant states and transitions before implementing
 - Tag each with **how often one user sees it**: many times an hour, many times
   a day, occasionally, rarely
-- Build the **do-not-animate list** explicitly: keyboard-driven actions,
-  anything committed to muscle memory, anything whose purpose you can't name.
-  This is a first-class output, not a leftover
-- Mark anything pressable that doesn't acknowledge a press — that's a
-  correctness bug, not a polish item, and it gets fixed regardless of mode
+- Consider whether motion would help, especially for frequent or keyboard-driven
+  actions. Treat this as a recommendation, not a ban
+- Press feedback may be instant; do not add animation solely to make a control
+  acknowledge a press
 - Principle: Laziness Protocol — this step should shorten the list, not grow it
 
 **How to verify:**
-- A table of transitions with a frequency tag on each
-- A do-not-animate list with a reason per entry
+- For a focused audit, a concise table: element/state, potential motion, and
+  purpose. Include only useful candidates; say when none stand out
+- For a comprehensive audit, a table of transitions with frequency and any
+  deliberate do-not-animate decisions
 - **Valid outcome: nothing here should animate.** Say it and stop; that is a
   result, not a failure
 
@@ -89,32 +94,33 @@ Audit is read-only. If it produces code, it was a Build.
 ## Step 3: Decide Before You Build
 
 **What to do:**
-- For each survivor, walk the decisions in order: what does it buy, which curve
+- For Build mode, walk requested candidates through the decisions: what does it buy, which curve
   character, what duration budget, where does it originate, how does it
   interrupt, how does it exit, how does it degrade (`/web-motion`, §1–6)
 - Record each decision in words before any syntax — "decelerate, ~180ms, grows
   from the trigger, interruptible, exits downward"
 - If you can't name what a motion buys, cut it here
-- **Audit mode ends at this step.** Order the findings by leverage — the curve
-  that makes every dropdown feel sluggish outranks a one-off — and write each as
-  a self-contained change someone else could execute without your context
+- **Audit and Debug end at this step.** Offer concise recommendations, ordered
+  by usefulness. Describe the motion and its purpose in plain language; exact
+  code and values are unnecessary unless requested
 
 **How to verify:**
 - Every candidate has a written decision or an explicit cut
-- The cut list is not empty
-- Audit: a prioritized plan, each item executable standalone, plus the
-  do-not-animate list from step 2
+- Do not invent a cut just to fill a list; some scopes have no useful motion candidates
+- Audit: a concise, prioritized set of optional suggestions; no implementation
+- Debug: a diagnosis and suggested correction; no implementation unless asked
 
 ---
 
 ## Step 4: Build Against Tokens
 
 **What to do:**
-- Name the project's curves and durations if they don't exist; extend them if
-  they do. Keep the set small — three or four curves cover a product
-- Implement referencing token names, never raw values (`/web-motion`, §3)
-- Put shared behavior where it can't be forgotten: press feedback belongs to the
-  button component, not to every caller
+- If the requested implementation needs motion tokens, extend existing project
+  tokens or add only the small set the work needs
+- When implementing, prefer existing token names and project conventions
+  (`/web-motion`, §3); introduce tokens only when the project needs them
+- If the requested motion is shared behavior, put it where it belongs (for
+  example, in a shared button component)
 - Stay on the cheap path — compositor properties, not layout
   (`web-motion` → `references/performance.md`)
 - Principle: Code is Documentation. A named curve says what it's for; a raw
@@ -131,36 +137,46 @@ Audit is read-only. If it produces code, it was a Build.
 ## Step 5: Verify By Eye
 
 **What to do:**
-- Run the passes: use it as a user, slow it down, step the frames, real hardware
-  under real conditions, the degradation passes (`/verify-by-eye`)
-- Do it wrong on purpose: retrigger fast, interrupt halfway, reverse mid-gesture
-- Check reduced motion, touch vs. pointer, keyboard-only, longest content,
-  empty and error states
-- Sleep on it and look again with fresh eyes before calling it done
-- **Debug mode starts here** — the passes are how you turn "it feels off" into a
-  named property and a named moment, then return to step 3 to decide the fix
+- For Build mode, verify the implementation: use it as a user, inspect timing
+  and interruptions as relevant, and run the applicable degradation passes
+  (`/verify-by-eye`)
+- Check reduced motion, touch vs. pointer, keyboard-only, and relevant content
+  states for the implemented interaction
+- On a touch target, check the platform behaviors too — feedback on press
+  rather than release, sticky hover, tap highlight, gesture axes
+  (`/mobile-web`). These read as "cheap" and are not motion problems, so
+  `web-motion` will not catch them
+- Use deeper passes (slow playback, real hardware, fresh-eyes review) when the
+  implementation's complexity or impact warrants them
 
 **How to verify:**
-- Each pass run, findings recorded as before/after/why rows with `file:line`
-- Every finding names a property and a moment, not a feeling
-- The fresh-eyes pass happened, on a different day
-- Findings fixed, not filed
+- Findings identify the observed behavior and the relevant interaction
+- Audit and Debug stop with recommendations; no implementation is assumed
 
 ---
 
 ## Step 6: Encode and Handoff
 
 **What to do:**
-- Encode the failure modes you actually hit: a lint rule for the curve you keep
-  fixing, a shared component that makes the wrong thing unavailable
-- Document the motion character — the tokens, one line each on what they're for
+- When implementation reveals a recurring failure, encode it in an appropriate
+  place, such as a lint rule or shared component
+- Document motion tokens or conventions when the implementation adds or changes
+  them
 - Decision log: what moves, what deliberately does not, and why. **The
   "does not" half is the more valuable one** — it's what stops the next
   contributor, or the next agent, from adding motion you deliberately refused
 - Principle: Encode Lessons in Structure
 
 **How to verify:**
-- At least one lesson enforced by tooling, not by memory
-- Token set documented where someone will find it
+- Any new motion convention is documented where someone will find it
 - Someone else could extend this interface, stay in character, and know what not
   to touch — without asking
+
+**Then run Handoff** (`playbooks/playbook-handoff.md`) for the decision log,
+evidence labels, and the reply. Unique to this playbook: the decision log's
+more valuable half is what deliberately does not move.
+
+**Reply:** Build mode — what moves, what deliberately does not and why, the
+tokens touched, what you observed when you used it. Audit and Debug modes stop
+at step 3: a prioritized list of candidates or a diagnosis, in plain language,
+with no implementation and no code.

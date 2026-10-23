@@ -102,3 +102,15 @@ type: playbook
 **How to verify:**
 - PR showing the improvement in structure/readability
 - Each commit is clear and reviewable
+
+**Then run Handoff** (`playbooks/playbook-handoff.md`) for the decision log,
+evidence labels, and the reply. Unique to this playbook: the handoff carries the
+proof that behavior did not change.
+
+If the refactor touches code with callers you didn't read, run `/blast-radius`
+before claiming behavior is preserved. "Nothing else is affected" is the claim
+most likely to read as convincing while being untested.
+
+**Reply:** what changed shape and why it reads better now, the proof behavior is
+unchanged (the same tests passing before and after, output compared, or the
+observation you made). A refactor with no before-and-after proof is a rewrite.

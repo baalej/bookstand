@@ -1,6 +1,6 @@
 ---
 name: exhaust-the-design-space
-description: Build 2-3 competing prototypes before committing to a design.
+description: "Apply before committing to a non-trivial design, when a choice between approaches feels uncertain, or on an architectural decision with no precedent. Build 2-3 genuinely competing prototypes and compare them, rather than refining the first idea."
 disable-model-invocation: true
 ---
 
@@ -65,3 +65,13 @@ disable-model-invocation: true
 - **Prototyping theater**: Building prototypes but deciding based on preference, not evaluation.
 - **Incomplete prototypes**: Sketching design B and C but only fully building A, so you can't really compare.
 - **Defending the wrong design**: When evidence suggests a different design is better, accepting it instead of doubling down on your original choice.
+
+---
+
+## Related
+
+Held in tension with [Laziness Protocol](../laziness-protocol/SKILL.md). Two or three prototypes are not scope creep — they are throwaway probes that let the smallest real change be identified rather than guessed. Delete all of them, then build one. If the answer is already obvious, Laziness wins and this does not apply.
+
+Runs after [Foundational Thinking](../foundational-thinking/SKILL.md) has named the data shape: competing designs are compared over the same structure, or they are not comparable.
+
+Discharged by the **Prototype** playbook (`astack-mode/playbooks/playbook-prototype.md`), which is where competing sketches actually get built, compared and thrown away. A question whose answer is observable by running something goes there rather than to the human, per the empirical-fork rule in [astack-mode](../astack-mode/SKILL.md).

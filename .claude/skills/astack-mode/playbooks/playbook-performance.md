@@ -108,3 +108,13 @@ type: playbook
 - Commit explaining the optimization
 - Measurement data attached
 - Any preventive measures in place (lint rule, test, schema)
+
+**Then run Handoff** (`playbooks/playbook-handoff.md`) for the decision log,
+evidence labels, and the reply. Unique to this playbook: every number in the
+handoff is measured, and the handoff says what limits the new number.
+
+**Reply:** the baseline, the bottleneck and how you found it, the change, the
+after-number. Both numbers measured on the same workload, and say which
+workload. Name what limits it now — an optimization with no new limiting factor
+identified was not understood. Rule out that you measured something other than
+the work.

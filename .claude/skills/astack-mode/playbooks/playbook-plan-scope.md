@@ -102,3 +102,12 @@ type: playbook
 **How to verify:**
 - A doc that someone else can use to start building
 - All decisions are traceable and justified
+
+**Then run Handoff** (`playbooks/playbook-handoff.md`) for the decision log,
+evidence labels, and the reply. Unique to this playbook: the plan is the
+deliverable, so someone else could start phase 1 tomorrow without asking a
+question.
+
+**Reply:** the outcome, the phases and what each one proves, the risks and how
+you de-risked them early, what you cut and why. Every estimate is labeled a
+guess unless you measured something comparable.

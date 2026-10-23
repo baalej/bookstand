@@ -104,3 +104,11 @@ type: playbook
 **How to verify:**
 - Commit that a reviewer can trace from bug to root to fix
 - All related bugs are addressed in the same PR
+
+**Then run Handoff** (`playbooks/playbook-handoff.md`) for the decision log,
+evidence labels, and the reply. Unique to this playbook: the failing repro lands
+before the fix in history.
+
+**Reply:** what was broken, the root cause, the fix, how you verified. Paste the
+failing-then-passing repro output verbatim. If you fixed the class rather than
+the instance, say where the guardrail lives.
