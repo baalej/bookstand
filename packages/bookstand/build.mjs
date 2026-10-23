@@ -13,6 +13,35 @@ import { readFileSync, statSync } from 'node:fs';
 /** PLAN.md §9. A budget nobody checks is not a budget. */
 const BUDGET = { 'bookstand.js': 14 * 1024, 'element.js': 16 * 1024 };
 
+/**
+ * Comments inside the shader sources are strings to esbuild, so the minifier
+ * keeps every word of them and they ship to every reader. They are the right
+ * place for the reasoning, so they stay in the source and come out here,
+ * along with the indentation GLSL does not need. Only the two shader
+ * literals are touched: the scan runs from a 'const VERTEX = ' or
+ * 'const FRAGMENT = ' backtick to the next backtick, and GLSL has none.
+ */
+const stripShaderComments = {
+  name: 'strip-shader-comments',
+  setup(b) {
+    b.onLoad({ filter: /render[\\/]webgl-renderer\.ts$/ }, (args) => {
+      const source = readFileSync(args.path, 'utf8');
+      const contents = source.replace(
+        /(const (?:VERTEX|FRAGMENT) = `)([^`]*)`/g,
+        (_, head, glsl) =>
+          head +
+          glsl
+            .replace(/\/\*[\s\S]*?\*\//g, '')
+            .replace(/\/\/[^\n]*/g, '')
+            .replace(/^[ \t]+|[ \t]+$/gm, '')
+            .replace(/\n{2,}/g, '\n') +
+          '`',
+      );
+      return { contents, loader: 'ts' };
+    });
+  },
+};
+
 const shared = {
   bundle: true,
   format: 'esm',
@@ -21,6 +50,7 @@ const shared = {
   // refuse to emit syntax these cannot run rather than shipping it silently.
   target: ['es2020', 'safari13.1', 'chrome84', 'firefox79', 'edge84'],
   legalComments: 'none',
+  plugins: [stripShaderComments],
 };
 
 await build({

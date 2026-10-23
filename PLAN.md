@@ -1215,6 +1215,31 @@ shader change needs to pay for itself in bytes.
 That is physically fair — glare on a glossy page is seen in the dark areas — but a coated page of
 pure text shows its finish mostly while turning.
 
+### Phase 4n — separating a lifted sheet from the page: tried, and declined
+
+Reported: mid-turn, a flap and the page beneath it are both white, and a dog-ear's corner over a white
+margin has no visible outline. Cause, measured: the turned-over flap lies flat facing the light, so it
+renders at exactly the page's brightness; brightening cannot help, since white is already at 1.0.
+
+Four approaches were built and judged at 2× on the same four poses (dog-ear, corner drag, mid-turn
+forward and back). **None was kept**; the renderer stays as 4m left it.
+
+| Approach | What it did | Why it was declined |
+|---|---|---|
+| Tone on the sheet | Sky occlusion by tilt, a lighting-only bow on the flap, a darkened rim on its free edges | Read as darker paper rather than a lifted sheet; at strengths subtle enough to accept, it barely registered |
+| Contact occlusion | Soft halo on the receiver just outside the flap's free edges, analytic from the reflected page rect | Defined the flap in every pose, +0.016 ms mid-flip; still not convincing enough to keep |
+| Cast shadow | Flap footprint offset along the light, softness growing with height | Falls down-right under a top-left light, mostly beneath the flap and roll; the lit-side edges — the ones that vanish — stay undefined |
+| Cast shadow + tone | Both | As above |
+
+Worth knowing before trying again: casting from the **flat flap only** (never the roll) avoided 4j's
+straight-edged termination entirely — the flap's crease-side boundary always lands under the flap or
+the roll. And a receiver shadow must be placed against the flap as *rendered*: map the receiver point
+through the flap's perspective scale (`c + (q − c)·w`) before testing it against the footprint.
+
+**Kept from this round:** `build.mjs` strips comments and indentation from the two shader literals,
+which ship as strings — **14,427 → 12,125 B gzip, 101% → 85% of budget**. The stripped bundle was
+loaded in a browser and links and renders.
+
 **Phase 6 — A11y, zoom, polish** *(~2 days)*
 ARIA, keyboard, live region, reduced motion, pinch/double-tap zoom and pan, no-JS fallback.
 
