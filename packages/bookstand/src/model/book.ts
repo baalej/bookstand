@@ -4,6 +4,7 @@ import type {
   FaceSlot,
   ImageSource,
   PageInput,
+  Paper,
   Sheet,
   SpreadInput,
   SpreadState,
@@ -26,7 +27,13 @@ export interface Book {
 
 function normalizeImage(input: PageInput, alt: string): ImageSource {
   if (typeof input === 'string') return { src: input, alt };
-  return { alt, ...input };
+  // The stock is the face's, not the image's: it is not passed to an <img>.
+  const { paper: _paper, ...image } = input;
+  return { alt, ...image };
+}
+
+function paperOf(input: PageInput, fallback: Paper): Paper {
+  return (typeof input === 'string' ? undefined : input.paper) ?? fallback;
 }
 
 function normalizeSpread(spread: SpreadInput): readonly [PageInput, PageInput] {
@@ -60,23 +67,26 @@ export function buildBook(input: BookInput): Book {
   const faces: FaceSlot[] = [];
   let pageNumber = 0;
 
-  const push = (image: ImageSource, role: FaceRole, n: number | null): void => {
-    faces.push({ index: faces.length, image, role, pageNumber: n });
+  const stock = input.paper ?? 'uncoated';
+
+  const push = (page: PageInput, alt: string, role: FaceRole, n: number | null): void => {
+    const paper = paperOf(page, role === 'interior' ? stock : 'coated');
+    faces.push({ index: faces.length, image: normalizeImage(page, alt), role, pageNumber: n, paper });
   };
 
   if (input.cover !== undefined) {
-    push(normalizeImage(input.cover, 'Front cover'), 'cover', null);
+    push(input.cover, 'Front cover', 'cover', null);
   } else {
     faces.push(null); // leading pad — see doc comment
   }
 
   for (const [left, right] of spreads) {
-    push(normalizeImage(left, `Page ${++pageNumber}`), 'interior', pageNumber);
-    push(normalizeImage(right, `Page ${++pageNumber}`), 'interior', pageNumber);
+    push(left, `Page ${++pageNumber}`, 'interior', pageNumber);
+    push(right, `Page ${++pageNumber}`, 'interior', pageNumber);
   }
 
   if (input.backCover !== undefined) {
-    push(normalizeImage(input.backCover, 'Back cover'), 'back-cover', null);
+    push(input.backCover, 'Back cover', 'back-cover', null);
   }
 
   if (faces.length % 2 !== 0) faces.push(null); // trailing pad

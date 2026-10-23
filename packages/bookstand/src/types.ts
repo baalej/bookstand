@@ -16,7 +16,21 @@ export interface ImageSource {
   placeholder?: string;
 }
 
-export type PageInput = string | ({ src: string } & Partial<Omit<ImageSource, 'src'>>);
+/**
+ * The stock a page is printed on, which is a matter of how it takes the light.
+ *
+ *   coated   — a smooth clay surface, as in magazines and art books. Ink sits
+ *              on top and stays glossy: a soft glare across the page, strongest
+ *              over dark print, and a bright streak along a turning roll.
+ *   uncoated — the bare fibre of most novels and notebooks. Matte: the light
+ *              scatters, there is no glare, and a lifted sheet shows more of
+ *              its reverse.
+ */
+export type Paper = 'coated' | 'uncoated';
+
+export type PageInput =
+  | string
+  | ({ src: string; paper?: Paper } & Partial<Omit<ImageSource, 'src'>>);
 
 export type SpreadInput = readonly [PageInput, PageInput] | { left: PageInput; right: PageInput };
 
@@ -27,6 +41,12 @@ export interface BookInput {
   spreads?: readonly SpreadInput[];
   /** Optional. Ends on the left, as it would in a real book. */
   backCover?: PageInput;
+  /**
+   * Stock for every interior page that does not name its own. Covers default
+   * to `'coated'` instead — a laminated board — unless they name their own.
+   * Defaults to `'uncoated'`.
+   */
+  paper?: Paper;
 }
 
 export type FaceRole = 'cover' | 'interior' | 'back-cover';
@@ -38,6 +58,7 @@ export interface Face {
   role: FaceRole;
   /** 1-based page number among interior pages; null for covers. */
   pageNumber: number | null;
+  paper: Paper;
 }
 
 /**

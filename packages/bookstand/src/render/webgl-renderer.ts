@@ -1,6 +1,6 @@
 import type { FrameState } from '../flip-controller.js';
 import type { Layout } from '../layout.js';
-import type { FaceSlot } from '../types.js';
+import type { FaceSlot, Paper } from '../types.js';
 import {
   createContext,
   createGrid,
@@ -11,6 +11,8 @@ import {
   type Grid,
   type UniformMap,
 } from './gl.js';
+import { defaultCurl } from '../geom/fold.js';
+import { createGrainTexture } from './grain.js';
 import type { TextureStore } from './textures.js';
 
 /**
@@ -75,6 +77,7 @@ varying ${SHARED_PRECISION} vec2 vUV;
 varying ${SHARED_PRECISION} float vFold;  // signed distance past the crease
 varying ${SHARED_PRECISION} float vHinge; // rigid hinge angle, for shading
 varying ${SHARED_PRECISION} float vSpine;
+varying ${SHARED_PRECISION} vec3 vPos;   // book space; z is height off the page
 
 const float PI = 3.141592653589793;
 
@@ -125,6 +128,7 @@ void main() {
   }
 
   vec2 book = vec2(p.x * uMirror, p.y);
+  vPos = vec3(book, p.z);
 
   // A sheet tilted toward the viewer really does grow, but unbounded growth
   // overflows the footprint and clips at the canvas edge, so the divide is
@@ -144,6 +148,42 @@ void main() {
 }
 `;
 
+/**
+ * The paper terms in the fragment shader below. Explained here rather than
+ * inside the GLSL: comments in a shader string ship to every reader, and the
+ * bundle has a budget.
+ *
+ * Each face carries its own finish (coated or uncoated) and the terms read
+ * it per face, so the two sides of a turning sheet can differ.
+ *
+ * One rule governs all of them: **on flat paper the resting and the lifted
+ * draw compute the same thing.** A hovering cursor replaces the resting page
+ * with a lifted sheet, so anything the two paths disagree on is a hover
+ * highlight (Phase 4b). Both run the glare with the same normal, position and
+ * eye; show-through is zero on anything lying flat.
+ *
+ * - *Glare* is how a reader tells coated paper from uncoated. Blinn-Phong
+ *   against the real eye position, so the half-vector changes across a flat
+ *   spread: a glossy page brightens toward the corner that mirrors the light
+ *   and falls off across the spread, and a turning roll sweeps a tight streak
+ *   through it. Uncoated paper has a lobe so broad it is a faint, even veil —
+ *   the lifted blacks of matte stock. It is weighted toward ink, which is
+ *   where gloss shows (white paper is already at full brightness), and times
+ *   alpha because it is additive: a face still loading would otherwise grow a
+ *   highlight where no page is yet. The glare comes from its own direction,
+ *   not the key light: the key sits too far off-axis for its reflection to
+ *   land anywhere near the page.
+ * - *Grain* is sampled at the face's own image coordinates, so it is a
+ *   property of the page: identical resting or lifted, and carried round the
+ *   curl with the paper.
+ * - *Show-through* scales with the paper's height off the page. A page on the
+ *   stack is backed by the next sheet; a lifted one is lit from behind. Height,
+ *   not how far it has rolled: the radius relaxes to zero as a turned page
+ *   lands, so height reaches zero exactly when the resting page takes over.
+ *   Keyed to the roll instead, the turned part kept full show-through until
+ *   the hand-off and lost it in one frame. A reverse still loading arrives as
+ *   transparent black and is read as blank paper, not as ink.
+ */
 const FRAGMENT = `
 precision mediump float;
 
@@ -151,6 +191,7 @@ varying ${SHARED_PRECISION} vec2 vUV;
 varying ${SHARED_PRECISION} float vFold;
 varying ${SHARED_PRECISION} float vHinge;
 varying ${SHARED_PRECISION} float vSpine;
+varying ${SHARED_PRECISION} vec3 vPos;
 
 uniform sampler2D uFront;
 uniform sampler2D uBack;
@@ -204,19 +245,37 @@ uniform float uLit;           // 1 to shade by the normal, 0 to leave flat
 uniform ${SHARED_PRECISION} vec3 uLight;
 uniform float uAmbient;
 
+uniform sampler2D uGrain;
+uniform vec2 uGrainRepeat;    // grain tiles across the page, per axis
+uniform vec4 uFinish;         // front face: paper gloss, ink gloss, shininess, grain
+uniform vec4 uFinishBack;
+uniform vec2 uShowThrough;    // per face; 0 on anything that is not a soft sheet
+uniform float uLiftFull;      // height at which show-through is complete
+uniform vec3 uGlare;
+uniform highp vec3 uEye;
+
 void main() {
-  vec4 c;
-  if (gl_FrontFacing || uHasBack < 0.5) {
-    c = texture2D(uFront, vUV);
-  } else {
-    // The reverse of a sheet reads mirrored, because we are looking through it.
-    c = texture2D(uBack, vec2(1.0 - vUV.x, vUV.y));
-  }
+  bool front = gl_FrontFacing || uHasBack < 0.5;
+  // The reverse of a sheet reads mirrored: we are looking through it.
+  vec2 faceUV = front ? vUV : vec2(1.0 - vUV.x, vUV.y);
+  vec4 c = front ? texture2D(uFront, faceUV) : texture2D(uBack, faceUV);
   vec3 rgb = c.rgb;
 
+  vec4 finish = front ? uFinish : uFinishBack;
+
+  if (uShowThrough.x + uShowThrough.y > 0.0) {
+    vec4 o = front ? texture2D(uBack, vec2(1.0 - vUV.x, vUV.y)) : texture2D(uFront, vUV);
+    vec3 behind = mix(vec3(1.0), o.rgb, o.a);
+    float lift = clamp(vPos.z / uLiftFull, 0.0, 1.0);
+    rgb *= mix(vec3(1.0), behind, (front ? uShowThrough.x : uShowThrough.y) * lift);
+  }
+
+  rgb *= 1.0 - finish.w * texture2D(uGrain, faceUV * uGrainRepeat).r;
+
+  vec3 n = surfaceNormal();
+  if (!gl_FrontFacing) n = -n;
+
   if (uLit > 0.5) {
-    vec3 n = surfaceNormal();
-    if (!gl_FrontFacing) n = -n;
     vec3 l = normalize(uLight);
     // Half-Lambert, and weighted heavily toward ambient. Paper is thin, white
     // and lit by bounce from every direction, so a full Lambert term renders
@@ -233,6 +292,11 @@ void main() {
     float unlifted = l.z * 0.5 + 0.5;   // 'flat' is reserved in GLSL
     rgb *= (uAmbient + (1.0 - uAmbient) * wrapped) / (uAmbient + (1.0 - uAmbient) * unlifted);
   }
+
+  vec3 h = normalize(normalize(uGlare) + normalize(uEye - vPos));
+  float glare = pow(max(dot(n, h), 0.0), finish.z);
+  float ink = 1.0 - dot(c.rgb, vec3(0.299, 0.587, 0.114));
+  rgb += glare * mix(finish.x, finish.y, ink) * c.a;
 
   // The gutter: paper curving down into the binding. Two terms, because one
   // exponential cannot be both.
@@ -278,7 +342,29 @@ const UNIFORMS = [
   'uLit',
   'uLight',
   'uAmbient',
+  'uGrain',
+  'uGrainRepeat',
+  'uFinish',
+  'uFinishBack',
+  'uShowThrough',
+  'uLiftFull',
+  'uGlare',
+  'uEye',
 ];
+
+export interface PaperFinish {
+  /** Glare at the peak of the lobe: over bare paper, then over solid ink. */
+  gloss: readonly [number, number];
+  /** Tightness of the glare. High is a polished coat; low a matte veil. */
+  shininess: number;
+  /** How much the grain darkens the page at its darkest fibre. Keep it faint. */
+  grain: number;
+  /**
+   * How much a sheet lifted to its full height shows its reverse. Paper lying
+   * on the stack shows none. Soft sheets only — a cover board is opaque.
+   */
+  showThrough: number;
+}
 
 export interface RenderOptions {
   /**
@@ -315,6 +401,15 @@ export interface RenderOptions {
    * the diffuse term is here to sculpt the roll, not to light the page.
    */
   ambient: number;
+  /**
+   * Direction of the light whose reflection a glossy page shows, in book
+   * space. Near the mirror of the eye, so the glare lands on the spread.
+   */
+  glare: readonly [number, number, number];
+  /** How each paper stock takes the light. A page picks one with `paper`. */
+  papers: Readonly<Record<Paper, PaperFinish>>;
+  /** Width of one grain tile, in CSS pixels. About one texel per pixel. */
+  grainSize: number;
   /** Curl mesh subdivisions. Enough that the roll reads smooth at the crease. */
   segments: readonly [number, number];
 }
@@ -329,6 +424,18 @@ export const defaultRender: RenderOptions = {
   maxMagnification: 1.08,
   light: [-0.35, -0.5, 0.79],
   ambient: 0.78,
+  // Mirrors into the eye a fifth of a page left of the spine, a third of the
+  // way down: the glare straddles the gutter, so a coated page on either side
+  // catches some of it.
+  glare: [-0.05, -0.1, 0.99],
+  papers: {
+    // Tight: a broad coated lobe lifts every black on the page evenly, which
+    // reads as a faded print rather than a glossy one. Gloss is a hotspot,
+    // with deep blacks everywhere it is not.
+    coated: { gloss: [0.12, 0.22], shininess: 250, grain: 0.004, showThrough: 0.02 },
+    uncoated: { gloss: [0.01, 0.035], shininess: 2, grain: 0.012, showThrough: 0.04 },
+  },
+  grainSize: 256,
   // Dense enough that the roll's *silhouette* resolves; shading no longer
   // depends on this, since the fragment stage rebuilds the normal. One sheet
   // at a time, so ~38k triangles a frame.
@@ -342,12 +449,18 @@ export class WebGLRenderer {
   private readonly flat: Grid;
   private readonly curled: Grid;
   private readonly blank: WebGLTexture;
+  private readonly grain: WebGLTexture;
   private readonly aPos: number;
   private lost = false;
 
   constructor(
     readonly canvas: HTMLCanvasElement,
     private readonly options: RenderOptions = defaultRender,
+    /**
+     * The tallest the curl stands, in page widths: twice the curl's maximum
+     * radius. Show-through is complete at this height.
+     */
+    private readonly liftHeight = 2 * defaultCurl.maxRadius,
   ) {
     const gl = createContext(canvas);
     if (!gl) throw new Error('Bookstand: WebGL is unavailable.');
@@ -357,6 +470,7 @@ export class WebGLRenderer {
     this.flat = createGrid(gl, 1, 1);
     this.curled = createGrid(gl, options.segments[0], options.segments[1]);
     this.blank = createSolidTexture(gl, [0, 0, 0, 0]);
+    this.grain = createGrainTexture(gl);
     this.aPos = gl.getAttribLocation(this.program, 'aPos');
 
     gl.enable(gl.DEPTH_TEST);
@@ -418,6 +532,26 @@ export class WebGLRenderer {
     gl.uniform1f(this.u['uGutterCoreTightness']!, this.options.gutterCoreTightness);
     gl.uniform3fv(this.u['uLight']!, this.options.light as unknown as number[]);
     gl.uniform1f(this.u['uAmbient']!, this.options.ambient);
+    gl.uniform1i(this.u['uGrain']!, 2);
+    gl.uniform2f(
+      this.u['uGrainRepeat']!,
+      layout.pageWidth / this.options.grainSize,
+      layout.pageHeight / this.options.grainSize,
+    );
+    gl.uniform1f(this.u['uLiftFull']!, this.liftHeight * layout.pageWidth);
+    gl.uniform3fv(this.u['uGlare']!, this.options.glare as unknown as number[]);
+    // Where the perspective divide puts the eye: focal above the spine, at
+    // mid-height, since the projection pivots the divide about that point.
+    gl.uniform3f(
+      this.u['uEye']!,
+      0,
+      layout.pageHeight / 2,
+      layout.pageWidth * this.options.focal,
+    );
+    // Every draw samples the same grain, so it is bound once per frame on a
+    // unit of its own, out of the way of the per-draw page textures.
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, this.grain);
 
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -447,6 +581,17 @@ export class WebGLRenderer {
     this.gl.frontFace(mirror > 0 ? this.gl.CCW : this.gl.CW);
   }
 
+  /** Glare and grain for one face; slot 'uFinish' or 'uFinishBack'. */
+  private setFinish(slot: 'uFinish' | 'uFinishBack', face: FaceSlot): void {
+    const f = this.finishFor(face);
+    this.gl.uniform4f(this.u[slot]!, f.gloss[0], f.gloss[1], f.shininess, f.grain);
+  }
+
+  private finishFor(face: FaceSlot): PaperFinish {
+    const paper: Paper = face?.paper ?? 'uncoated';
+    return this.options.papers[paper];
+  }
+
   /** A cover board does not bow into the binding; interior paper does. */
   private gutterScaleFor(face: FaceSlot): number {
     return face && face.role !== 'interior' ? this.options.coverGutter : 1;
@@ -469,7 +614,9 @@ export class WebGLRenderer {
     gl.uniform1f(this.u['uAngle']!, 0);
     gl.uniform1f(this.u['uRadius']!, 1); // never leave a divisor at zero
     gl.uniform1f(this.u['uHasBack']!, 0);
-    gl.uniform1f(this.u['uLit']!, 0); // a page lying flat needs no shading
+    gl.uniform1f(this.u['uLit']!, 0); // no diffuse term lying flat; the glare still applies
+    gl.uniform2f(this.u['uShowThrough']!, 0, 0); // it lies on the stack, backed by the next sheet
+    this.setFinish('uFinish', face);
     const scale = this.gutterScaleFor(face);
     gl.uniform2f(this.u['uGutterScale']!, scale, scale);
     gl.drawElements(gl.TRIANGLES, this.flat.count, gl.UNSIGNED_SHORT, 0);
@@ -491,6 +638,15 @@ export class WebGLRenderer {
     gl.uniform1f(this.u['uUvFlip']!, forward ? 0 : 1);
     gl.uniform1f(this.u['uHasBack']!, flip.movingBack ? 1 : 0);
     gl.uniform1f(this.u['uLit']!, 1);
+    // Gated here, not only by the curl in the shader, so a rigid board skips
+    // the second texture fetch entirely.
+    gl.uniform2f(
+      this.u['uShowThrough']!,
+      soft && flip.movingBack ? this.finishFor(flip.movingFront).showThrough : 0,
+      soft && flip.movingBack ? this.finishFor(flip.movingBack).showThrough : 0,
+    );
+    this.setFinish('uFinish', flip.movingFront);
+    this.setFinish('uFinishBack', flip.movingBack);
     gl.uniform2f(
       this.u['uGutterScale']!,
       this.gutterScaleFor(flip.movingFront),
@@ -500,7 +656,10 @@ export class WebGLRenderer {
       gl.uniform1f(this.u['uCurl']!, 1);
       gl.uniform2f(this.u['uFoldOrigin']!, flip.fold.origin.x, flip.fold.origin.y);
       gl.uniform2f(this.u['uFoldNormal']!, flip.fold.normal.x, flip.fold.normal.y);
-      gl.uniform1f(this.u['uRadius']!, Math.max(1, flip.fold.radius));
+      // Floored only against dividing by zero. A 1px floor held a landed page
+      // 2px off the spread, and show-through, which follows height, then
+      // vanished at the hand-off instead of fading out.
+      gl.uniform1f(this.u['uRadius']!, Math.max(1e-3, flip.fold.radius));
       gl.uniform1f(this.u['uAngle']!, 0);
     } else {
       gl.uniform1f(this.u['uCurl']!, 0);
@@ -525,5 +684,6 @@ export class WebGLRenderer {
       gl.deleteBuffer(grid.indices);
     }
     gl.deleteTexture(this.blank);
+    gl.deleteTexture(this.grain);
   }
 }

@@ -10,7 +10,8 @@ const config = {
   cover: '/cover.jpg',
   spreads: [
     ['/page_1.jpg', '/page_2.jpg'],
-    ['/page_3.jpg', '/page_4.jpg'],
+    // One of each stock, side by side under the same light.
+    [{ src: '/page_3.jpg', paper: 'coated' }, '/page_4.jpg'],
     ['/page_5.jpg', '/page_6.jpg'],
   ],
   backCover: '/backcover.jpg',

@@ -1020,7 +1020,7 @@ own half (4f/4i); an off-screen blurred caster with correct receivers produced t
 projection, the blur and the choice of receivers have all now been tried and are not the problem.
 `test/tokens.test.ts` fails by name if any of the machinery reappears.
 
-**Still to do in this phase:** specular sheen, show-through, leading-edge highlight, fore-edge
+**Still to do in this phase:** ~~specular sheen, show-through, leading-edge highlight~~ (4l), fore-edge
 page-thickness stack, power-of-two/mipmap upload (the edge-on aliasing from Phase 2 is still there),
 anisotropic filtering, visual regression snapshots.
 
@@ -1155,6 +1155,65 @@ a further **330 poses, 0 clipped** on the `ownsHeight` path, which computes its 
 had to be checked separately. The model was validated against the renderer first — it predicted 1.2
 NDC where the rendered sheet saturated at 0.997, the canvas edge, which is what clipping looks like
 from the outside.
+
+### Phase 4l — paper: grain, show-through, ink sheen, all in the existing pass
+
+Prompted by comparing against paper.design/mono (three.js, one shadow-casting light, a paper shader
+with `PAPER_TRANSPARENCY` and `INK_GLOSS`). Its look comes from the material, and the material terms
+clear 4j's bar: a few ops and one texture fetch inside the pass that was already running.
+
+| Term | Where | How |
+|---|---|---|
+| Grain | every face | 256² tiling luminance texture, generated once per page (formation + tooth + short faint fibres), REPEAT + mipmaps, keyed to the face's image UV |
+| Show-through | soft sheet, lifted part only | reverse face × `showThrough × rollLift()`, `rollLift` = 0 at the crease, 1 at the top of the roll |
+| Sheen | lit sheet | Blinn-Phong *minus the same term for a flat sheet*, weighted toward ink, broken up by the grain |
+
+> **Every term is zero, or identical, where the paper lies flat.** That is 4b's lesson applied in
+> advance: the lifted sheet replaces the resting page under the cursor, so anything that differs on
+> flat paper is a hover highlight. Grain is keyed to the image, not the draw; show-through and sheen
+> start at exactly 0 at the crease. Measured: switching each off changes **0 px outside the curl**
+> (show-through 167 px, sheen 1,111 px, all inside it).
+
+First grain attempt used 3–12px fibres at up to full strength: on screen they read as **straw in
+handmade paper**. Short (1.5–5px) faint fibres over a fine tooth read as a printed book.
+
+Frame time, same probe (frame `p ≈ 0.4`, 300 draws, `readPixels` sync, median of 7–9 runs):
+
+| | before | after |
+|---|---|---|
+| Apple GPU, 1308×1256 — still | 0.068 ms | 0.079–0.091 ms |
+| Apple GPU — mid-flip | 0.143 ms | 0.197–0.209 ms (show-through's fetch ≈ 0.02) |
+| SwiftShader, 1500×761 — still / flip | 1.5 / 1.7 ms | 1.6–1.8 / 1.6–2.1 ms (within its noise) |
+
+GPU memory: +85 KB per instance. Idle cost unchanged at zero — rendering is still on demand.
+
+**Noticed, not caused:** the hover peek now changes ~3,500 px in a full-height box on the right
+half, against 4b's 91 px in a corner. Identical on the committed renderer, so it predates this
+phase — the peek's fold runs diagonally across the page.
+
+### Phase 4m — paper stock is a property of the page, and it is seen in the light
+
+Review of 4l: the grain was far too strong; coated and uncoated paper should be told apart, per page;
+and show-through vanished in one frame as a turned page landed.
+
+| Change | Why |
+|---|---|
+| `paper: 'coated' \| 'uncoated'` on any page, `paper` on the book for the interior, covers default coated | Stock belongs to the face, not the renderer; one book can mix them, as real ones do |
+| Glare on **every** face, flat pages included, against the real eye position | A still spread is where a reader judges paper. With a per-fragment view vector the half-vector varies across a flat page, so glare is a gradient, not a constant |
+| Coated: tight lobe (250), aimed near the upper gutter. Uncoated: lobe of 2 — an even, faint veil | A broad coated lobe lifted every black evenly and read as a **faded** print; gloss is a hotspot with deep blacks around it |
+| Grain 0.06 → 0.012 uncoated, 0.004 coated | Now at most 2/255 |
+| Show-through keyed to **height** off the page, not roll angle; radius floor 1px → 1e-3 | The radius relaxes to 0 on landing, so height does too. Measured through a full flip: 904k → 46k → 431 → 258 (rounding), where it previously held at ~39k until the hand-off |
+
+No hover seam despite glare on flat paper: peek-vs-rest **3,324 px** against 3,468 on the committed
+renderer. Had the resting and lifted paths disagreed, the whole half would differ.
+
+Frame time (Apple GPU, same probe): still **0.068 → ~0.11 ms**, mid-flip **0.143 → ~0.23 ms**. The
+increase over 4l is the glare now running on resting pages. Bundle: **99% of budget** — the next
+shader change needs to pay for itself in bytes.
+
+**Known limit:** glare is additive, so on white paper it clips and only shows over ink and imagery.
+That is physically fair — glare on a glossy page is seen in the dark areas — but a coated page of
+pure text shows its finish mostly while turning.
 
 **Phase 6 — A11y, zoom, polish** *(~2 days)*
 ARIA, keyboard, live region, reduced motion, pinch/double-tap zoom and pan, no-JS fallback.

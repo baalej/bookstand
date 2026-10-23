@@ -38,6 +38,7 @@ function face(n: number): Face {
     image: { src: `/page-${n}.jpg`, alt: `page ${n}` },
     role: 'interior',
     pageNumber: n,
+    paper: 'uncoated',
   };
 }
 

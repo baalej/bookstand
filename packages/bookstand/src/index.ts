@@ -2,6 +2,7 @@ export type {
   Point,
   ImageSource,
   PageInput,
+  Paper,
   SpreadInput,
   BookInput,
   Face,
@@ -53,7 +54,7 @@ export { FlipController, defaultMotion } from './flip-controller.js';
 export type { Layout, LayoutOptions } from './layout.js';
 export { computeLayout, defaultLayout } from './layout.js';
 
-export type { RenderOptions } from './render/webgl-renderer.js';
+export type { RenderOptions, PaperFinish } from './render/webgl-renderer.js';
 export { WebGLRenderer, defaultRender } from './render/webgl-renderer.js';
 export { TextureStore, defaultTextureLimit } from './render/textures.js';
 

@@ -2,13 +2,13 @@ import { buildBook, resolveStartState, type Book } from './model/book.js';
 import { FlipController, defaultMotion, type ControllerEvents, type MotionOptions } from './flip-controller.js';
 import { defaultCurl, foldSweep, type CurlOptions } from './geom/fold.js';
 import { computeLayout, defaultLayout, type Layout } from './layout.js';
-import type { RenderOptions } from './render/webgl-renderer.js';
+import type { PaperFinish, RenderOptions } from './render/webgl-renderer.js';
 import { WebGLRenderer, defaultRender } from './render/webgl-renderer.js';
 import { TextureStore, defaultTextureLimit } from './render/textures.js';
 import { PointerInput } from './input/pointer.js';
 import { gesture } from './motion/tokens.js';
 import { Emitter } from './events/emitter.js';
-import type { BookInput, FlipCorner } from './types.js';
+import type { BookInput, FlipCorner, Paper } from './types.js';
 
 export interface BookstandOptions extends BookInput {
   startAt?: 'cover' | 'first-spread' | number;
@@ -17,7 +17,10 @@ export interface BookstandOptions extends BookInput {
   padding?: number;
   motion?: Partial<MotionOptions>;
   curl?: Partial<CurlOptions>;
-  render?: Partial<RenderOptions>;
+  /** Overrides merge per finish and per field: `{ papers: { coated: { shininess: 80 } } }`. */
+  render?: Partial<Omit<RenderOptions, 'papers'>> & {
+    papers?: { [P in Paper]?: Partial<PaperFinish> };
+  };
   /** Cap on device pixel ratio. 2 is plenty for scans and halves the fill cost on 3× phones. */
   maxDpr?: number;
   /**
@@ -119,7 +122,17 @@ export class Bookstand {
     const intrinsic =
       first?.image.width && first.image.height ? first.image.width / first.image.height : undefined;
 
-    const render: RenderOptions = { ...defaultRender, ...options.render };
+    const papers = options.render?.papers;
+    const render: RenderOptions = {
+      ...defaultRender,
+      ...options.render,
+      // One level deeper than the rest: retuning one stock, or one field of
+      // it, must not drop the other stock and leave its pages unlit.
+      papers: {
+        coated: { ...defaultRender.papers.coated, ...papers?.coated },
+        uncoated: { ...defaultRender.papers.uncoated, ...papers?.uncoated },
+      },
+    };
 
     this.options = {
       aspect: options.aspect ?? intrinsic ?? defaultLayout.aspect,
@@ -176,7 +189,11 @@ export class Bookstand {
     // property would buy nothing but a second code path and a support check.
     this.ownsHeight = authoredHeight === 0;
 
-    this.renderer = new WebGLRenderer(this.canvas, render);
+    this.renderer = new WebGLRenderer(
+      this.canvas,
+      render,
+      2 * { ...defaultCurl, ...options.curl }.maxRadius,
+    );
     this.textures = new TextureStore(
       this.renderer.gl,
       () => this.schedule(),

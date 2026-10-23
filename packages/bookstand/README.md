@@ -201,8 +201,16 @@ Each page is a string URL, or an object when you want the details:
   srcset: '/page_1@2x.jpg 2x',
   sizes: '(max-width: 40rem) 100vw, 44rem',
   placeholder: '#e8e4dd',    // data URI or solid colour — accepted, not yet rendered
+  paper: 'coated',           // 'coated' | 'uncoated' — how this page takes the light
 }
 ```
+
+`paper` is the stock the page is printed on, and the reader sees it in the light rather than in the
+image. **Coated** — magazines, art books — keeps deep blacks and catches a soft glare across the
+spread, strongest over dark print, with a bright streak along the roll as it turns. **Uncoated** —
+novels, notebooks — is matte: no glare, a faint veil over the blacks, and a lifted sheet shows more
+of its reverse. Interior pages default to the book's `paper` option, and that to `'uncoated'`;
+covers default to `'coated'`, a laminated board. Any page, covers included, can name its own.
 
 Covers are optional and independent: cover only, back cover only, both, or neither. A cover sits on
 the right with the left half reserved, so the footprint never changes and opening the book does not
@@ -213,6 +221,7 @@ shove your layout around.
 ```js
 new Bookstand(host, {
   cover, spreads, backCover,   // the book
+  paper: 'uncoated',           // stock for interior pages that do not name their own
   startAt: 'cover',            // 'cover' | 'first-spread' | <spread index>
   aspect: 624 / 907,           // page width ÷ height; defaults to the first image's
   padding: 0.04,               // breathing room inside the host, as a fraction
@@ -280,12 +289,21 @@ render: {
   maxMagnification: 1.08,     // cap on how much a tilted sheet may grow
   light: [-0.35, -0.5, 0.79], // direction, in book space — up and to the left
   ambient: 0.78,              // share of brightness independent of the normal; high on purpose
+  glare: [-0.05, -0.1, 0.99], // the light a glossy page reflects — lands near the upper gutter
+  papers: {                   // per stock; override one field and the rest keep their defaults
+    coated:   { gloss: [0.12, 0.22], shininess: 250, grain: 0.004, showThrough: 0.02 },
+    uncoated: { gloss: [0.01, 0.035], shininess: 2, grain: 0.012, showThrough: 0.04 },
+  },                          // gloss: [bare paper, solid ink]; grain 0 for scans with their own
+  grainSize: 256,             // one grain tile, in CSS pixels
   segments: [160, 120],       // curl mesh subdivisions
 }
 ```
 
 `ambient` is high because paper is thin, white and lit by bounce from everywhere — the diffuse term
-is there to sculpt the roll, not to light the scene. There is no cast-shadow option: see `PLAN.md`
+is there to sculpt the roll, not to light the scene. Every paper term computes the same thing
+for a page resting and a page lifted under the cursor, so hovering never changes how flat paper
+looks. `showThrough` follows the sheet's height off the page and fades to nothing as it lands;
+`grain` is generated in code, so it costs no request. There is no cast-shadow option: see `PLAN.md`
 §4j for why it was removed rather than tuned.
 </details>
 

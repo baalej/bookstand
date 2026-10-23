@@ -162,3 +162,32 @@ describe('state helpers', () => {
     expect(resolveStartState(noCover, 'cover')).toBe(1);
   });
 });
+
+describe('paper', () => {
+  const papers = (book: ReturnType<typeof buildBook>): string =>
+    book.faces.map((f) => (f ? `${f.image.src}:${f.paper[0]}` : '-')).join(' ');
+
+  it('prints the interior uncoated and the covers coated by default', () => {
+    // A laminated board and plain stock: the commonest book there is.
+    const book = buildBook({ cover: 'C', spreads: [['a', 'b']], backCover: 'B' });
+    expect(papers(book)).toBe('C:c a:u b:u B:c');
+  });
+
+  it('takes a stock for the whole interior, leaving the covers alone', () => {
+    const book = buildBook({ cover: 'C', spreads: [['a', 'b']], paper: 'coated' });
+    expect(papers(book)).toBe('C:c a:c b:c -');
+  });
+
+  it('lets any page, covers included, name its own', () => {
+    const book = buildBook({
+      cover: { src: 'C', paper: 'uncoated' },
+      spreads: [[{ src: 'a', paper: 'coated' }, 'b']],
+    });
+    expect(papers(book)).toBe('C:u a:c b:u -');
+  });
+
+  it('keeps the stock off the image, which is handed to an <img> as it is', () => {
+    const book = buildBook({ spreads: [[{ src: 'a', paper: 'coated' }, 'b']] });
+    expect(book.faces[1]?.image).not.toHaveProperty('paper');
+  });
+});
