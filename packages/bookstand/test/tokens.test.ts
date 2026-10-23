@@ -351,3 +351,39 @@ describe('motion character', () => {
     expect(Object.keys(gesture)).not.toContain('intentLockMs');
   });
 });
+
+describe('a lost context comes back', () => {
+  // The restore handler only cleared a flag, so a restored book drew with the
+  // dead context's program and buffers and stayed blank for good. And with
+  // more than 16 books on a page Chrome evicts the oldest contexts, so the
+  // same blank page was one scroll away for any site with a gallery.
+  const renderer = code(join(SRC, 'render', 'webgl-renderer.ts'));
+  const book = code(join(SRC, 'bookstand.ts'));
+  const build = renderer.slice(renderer.indexOf('private build('), renderer.indexOf('private onLost'));
+
+  it.each(['createProgram(', 'createGrid(', 'createSolidTexture(', 'createGrainTexture('])(
+    'makes %s GPU state only where a restore remakes it',
+    (call) => {
+      const total = renderer.split(call).length - 1;
+      const inBuild = build.split(call).length - 1;
+      expect(inBuild).toBeGreaterThan(0);
+      expect(total, 'created outside build(), so a restore would miss it').toBe(inBuild);
+    },
+  );
+
+  it('rebuilds on restore, and has the owner reload the pages', () => {
+    const restored = renderer.slice(renderer.indexOf('private onRestored'));
+    expect(restored.slice(0, 200)).toMatch(/this\.build\(\)[\s\S]*this\.onRestore\(\)/);
+    expect(book).toMatch(/this\.textures\.reset\(\)/);
+  });
+
+  it('lets go of the context far from the screen, from the first frame', () => {
+    expect(book).toMatch(/new IntersectionObserver\(/);
+    expect(book).toMatch(/this\.renderer\.release\(\)/);
+    expect(book).toMatch(/this\.renderer\.reacquire\(\)/);
+    // Released at construction too: the observer answers a frame late, and a
+    // page building many books at once is evicted before then.
+    expect(book).toMatch(/if \(!nearScreen\(host\)\) this\.renderer\.release\(\)/);
+    expect(book.slice(book.indexOf('destroy(): void'))).toMatch(/this\.visibility\.disconnect\(\)/);
+  });
+});

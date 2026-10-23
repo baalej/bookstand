@@ -1263,6 +1263,36 @@ the old one); the landing hand-off is unchanged (38,754 px against the resting s
 progress 0.996, the same on the committed renderer — the last animated frame stops short of 1);
 hover peek 3,450 px, as before. `test/fold.test.ts` holds `radius / hold` to the unrelaxed radius.
 
+### Phase 4p — a lost context comes back, and a far-off book gives its context up
+
+Found by audit, measured before touching anything:
+
+| | Before | After |
+|---|---|---|
+| Lose and restore one context | 334,250 px drawn → **0**, `INVALID_OPERATION` every frame, for good | 334,250 → 334,250, no GL errors; a turn after it draws |
+| 24 books on one page | first **8** contexts evicted at construction, blank for good | **5–9** live at every scroll position, no visible book blank |
+| Near-screen books evicted at construction | 5 of 5 (recovered only because Chrome restored them) | **0** |
+| Far book scrolled straight into view | — | drawing again in ~140 ms (headless, images from cache) |
+
+**Root:** every GPU resource was created once, in constructors, and a context loss invalidates all of
+them at once. The restore handler cleared a flag and rebuilt nothing.
+
+**Fix at the root.** The renderer's GPU state comes from one `build()`, called at construction and on
+every restore; `onRestore` then has `Bookstand` reset its `TextureStore` and reload the working set.
+A generation counter stops a decode that began before the loss from uploading into the new context
+behind the store's back. The offscreen release reuses that same path rather than a second one:
+`WEBGL_lose_context.loseContext()` when an `IntersectionObserver` (one screen's margin) reports the
+book far away, `restoreContext()` as it nears — same canvas, so pointer listeners are untouched.
+
+> **The observer is a frame late.** A page building many books at once holds every context until it
+> answers, and past the limit Chrome evicts the first — the ones on screen. Books that start far away
+> release at construction. Without that, the near books' recovery rested on Chrome restoring a context
+> it evicted, which the spec does not promise.
+
+Guarded: `textures.test.ts` (reset; an in-flight decode does not upload — fails without the
+generation check), `tokens.test.ts` (GPU state made only in `build()`, restore rebuilds, the release
+wiring, and its disconnect).
+
 **Phase 6 — A11y, zoom, polish** *(~2 days)*
 ARIA, keyboard, live region, reduced motion, pinch/double-tap zoom and pan, no-JS fallback.
 

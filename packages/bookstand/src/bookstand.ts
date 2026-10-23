@@ -90,6 +90,13 @@ export type BookstandEvents = ControllerEvents & {
   resize: BookstandMetrics;
 };
 
+/** Within a screen's height of the viewport: the observer's margin, checked now. */
+function nearScreen(el: HTMLElement): boolean {
+  const r = el.getBoundingClientRect();
+  const h = window.innerHeight;
+  return r.bottom > -h && r.top < 2 * h;
+}
+
 export class Bookstand {
   readonly book: Book;
   private readonly controller: FlipController;
@@ -97,6 +104,7 @@ export class Bookstand {
   private readonly textures: TextureStore;
   private readonly canvas: HTMLCanvasElement;
   private readonly observer: ResizeObserver;
+  private readonly visibility: IntersectionObserver;
   private readonly events = new Emitter<{ resize: BookstandMetrics }>();
   /** Last size announced, so an unchanged re-measure stays quiet. */
   private announced = '';
@@ -193,6 +201,12 @@ export class Bookstand {
       this.canvas,
       render,
       2 * { ...defaultCurl, ...options.curl }.maxRadius,
+      () => {
+        // The renderer rebuilt its own state; the pages are ours to reload.
+        this.textures.reset();
+        this.prefetch();
+        this.schedule();
+      },
     );
     this.textures = new TextureStore(
       this.renderer.gl,
@@ -212,6 +226,25 @@ export class Bookstand {
     this.applyAccessibility();
     this.observer = new ResizeObserver(() => this.onResize());
     this.observer.observe(host);
+
+    // A book far from the screen gives its WebGL context back. The browser
+    // allows only so many (16 in Chrome) and, past that, evicts the oldest
+    // for good: measured, 24 books on one page left the first 8 blank. The
+    // margin of one screen either way brings a context back before the book
+    // scrolls into view, so the reload happens off-screen.
+    this.visibility = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry) return;
+        if (entry.isIntersecting) this.renderer.reacquire();
+        else if (!this.controller.interacting) this.renderer.release();
+      },
+      { rootMargin: '100% 0px' },
+    );
+    this.visibility.observe(host);
+    // The observer answers a frame later. A page that builds many books at
+    // once would hold all their contexts until then, and past the browser's
+    // limit the first ones are evicted before any of them can let go.
+    if (!nearScreen(host)) this.renderer.release();
 
     const interactions = options.interactions ?? {};
     const reduced =
@@ -324,6 +357,7 @@ export class Bookstand {
     this.destroyed = true;
     if (this.raf) cancelAnimationFrame(this.raf);
     this.observer.disconnect();
+    this.visibility.disconnect();
     this.pointer.destroy();
     this.host.removeEventListener('keydown', this.onKeyDown);
     this.controller.destroy();

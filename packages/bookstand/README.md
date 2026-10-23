@@ -351,6 +351,13 @@ Safari 13.1+ · Chrome 84+ · Firefox 79+ · Edge 84+ — 2020 onward. The const
 Events and `ResizeObserver`, not WebGL. There is no polyfill bundle and no second renderer; if the
 module never loads or a context cannot be created, your markup is untouched and the page still works.
 
+**Many books on one page.** Each book draws with its own WebGL context, and browsers cap how many a
+page may hold (16 in Chrome), evicting the oldest past that. So a book more than a screen's height
+from the viewport gives its context back, and takes it again — reloading its pages — before it
+scrolls into view. Measured with 24 books in a scrolling page: 5–9 contexts live at any scroll
+position and none of the visible books blank. A book that loses its context for any other reason (a
+GPU reset, a laptop waking) rebuilds itself when the browser restores it.
+
 `prefers-reduced-motion` is honoured: dragging stays, because it is direct manipulation under the
 reader's own hand, but the hover peek does not.
 

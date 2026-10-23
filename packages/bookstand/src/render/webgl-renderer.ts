@@ -446,14 +446,22 @@ export const defaultRender: RenderOptions = {
 
 export class WebGLRenderer {
   readonly gl: GL;
-  private readonly program: WebGLProgram;
-  private readonly u: UniformMap;
-  private readonly flat: Grid;
-  private readonly curled: Grid;
-  private readonly blank: WebGLTexture;
-  private readonly grain: WebGLTexture;
-  private readonly aPos: number;
+  // Everything below lives on the GPU and dies with the context. 'build' is
+  // the only place any of it is made — at construction and again on every
+  // restore — because a lost context invalidates all of it at once.
+  private program!: WebGLProgram;
+  private u!: UniformMap;
+  private flat!: Grid;
+  private curled!: Grid;
+  private blank!: WebGLTexture;
+  private grain!: WebGLTexture;
+  private aPos!: number;
   private lost = false;
+  /**
+   * Fetched up front: on a lost context 'getExtension' returns null, which is
+   * exactly when 'reacquire' needs it.
+   */
+  private readonly loseContext: WEBGL_lose_context | null;
 
   constructor(
     readonly canvas: HTMLCanvasElement,
@@ -463,10 +471,24 @@ export class WebGLRenderer {
      * radius. Show-through is complete at this height.
      */
     private readonly liftHeight = 2 * defaultCurl.maxRadius,
+    /**
+     * Called once the GPU state is rebuilt after a restore. Page textures are
+     * not the renderer's, so whoever owns them reloads them here.
+     */
+    private readonly onRestore: () => void = () => {},
   ) {
     const gl = createContext(canvas);
     if (!gl) throw new Error('Bookstand: WebGL is unavailable.');
     this.gl = gl;
+    this.loseContext = gl.getExtension('WEBGL_lose_context');
+    this.build();
+
+    canvas.addEventListener('webglcontextlost', this.onLost);
+    canvas.addEventListener('webglcontextrestored', this.onRestored);
+  }
+
+  private build(): void {
+    const { gl, options } = this;
     this.program = createProgram(gl, VERTEX, FRAGMENT);
     this.u = uniforms(gl, this.program, UNIFORMS);
     this.flat = createGrid(gl, 1, 1);
@@ -480,9 +502,6 @@ export class WebGLRenderer {
     gl.disable(gl.CULL_FACE); // both faces of a turning sheet are visible
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-
-    canvas.addEventListener('webglcontextlost', this.onLost);
-    canvas.addEventListener('webglcontextrestored', this.onRestored);
   }
 
   private onLost = (e: Event): void => {
@@ -490,12 +509,35 @@ export class WebGLRenderer {
     this.lost = true;
   };
 
+  /**
+   * Clearing the flag was all this used to do, and the book stayed blank for
+   * good: every program, buffer and texture belonged to the dead context, so
+   * each draw failed with INVALID_OPERATION. Measured: 334,250 pixels drawn
+   * before a loss, 0 after the restore.
+   */
   private onRestored = (): void => {
+    this.build();
     this.lost = false;
+    this.onRestore();
   };
 
   get contextLost(): boolean {
     return this.lost;
+  }
+
+  /**
+   * Give the context back to the browser, which allows only so many at once
+   * (16 in Chrome) and evicts the oldest past that — for good, since an
+   * evicted context is never restored. A book that releases its own while
+   * offscreen keeps the count down to the books actually near the screen.
+   * 'reacquire' brings it back through the ordinary restore path.
+   */
+  release(): void {
+    if (!this.lost) this.loseContext?.loseContext();
+  }
+
+  reacquire(): void {
+    if (this.lost) this.loseContext?.restoreContext();
   }
 
   resize(cssWidth: number, cssHeight: number, dpr: number): void {

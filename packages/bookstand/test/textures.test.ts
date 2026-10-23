@@ -28,6 +28,7 @@ function stubGL(): { gl: never; created: number; deleted: object[] } {
     texImage2D: () => {},
     texParameteri: () => {},
     pixelStorei: () => {},
+    isContextLost: () => false,
   };
   return { gl: gl as never, ...record, deleted: record.deleted, created: record.created };
 }
@@ -142,5 +143,53 @@ describe('texture memory is bounded', () => {
     const store = new TextureStore(gl, () => {}, 4);
     expect(() => store.request([null, face(1), null])).not.toThrow();
     expect(store.get(null)).toBeNull();
+  });
+});
+
+describe('a lost context', () => {
+  // Every texture belongs to the context that made it. After a loss the map
+  // still held all of them, so the restored book drew with dead handles and
+  // stayed blank — 0 pixels, INVALID_OPERATION on every draw.
+
+  it('forgets every texture, and the next request loads them again', () => {
+    const { gl } = stubGL();
+    const store = new TextureStore(gl, () => {}, 8);
+    seed(store, [face(1), face(2)]);
+    store.reset();
+    expect(store.size).toBe(0);
+    expect(held(store)).toEqual([]);
+  });
+
+  it('does not upload a load that began before the loss', async () => {
+    // The decode outlives the context. Uploaded into the new one behind the
+    // store's back, its slot already forgotten, it would never be freed.
+    let finish: () => void = () => {};
+    const decoded = new Promise<void>((resolve) => (finish = resolve));
+    const original = globalThis.Image;
+    globalThis.Image = class {
+      crossOrigin = '';
+      src = '';
+      decode(): Promise<void> {
+        return decoded;
+      }
+    } as unknown as typeof Image;
+    try {
+      const stub = stubGL();
+      let ready = 0;
+      const store = new TextureStore(stub.gl, () => ready++, 8);
+      store.request([face(1)]);
+      store.reset();
+      finish();
+      await decoded;
+      await new Promise((r) => setTimeout(r, 0));
+      expect(store.size).toBe(0);
+      expect(ready).toBe(0);
+
+      store.request([face(1)]);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(store.size, 'reloads after the reset').toBe(1);
+    } finally {
+      globalThis.Image = original;
+    }
   });
 });

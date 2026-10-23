@@ -43,6 +43,12 @@ export class TextureStore {
    * one thing it must not do.
    */
   private live = new Set<string>();
+  /**
+   * Bumped by 'reset'. A load started before a context loss finishes after
+   * it, and must not upload into the new context behind the store's back —
+   * its slot has been forgotten, so the texture would never be freed.
+   */
+  private generation = 0;
 
   constructor(
     private readonly gl: GL,
@@ -105,6 +111,7 @@ export class TextureStore {
   }
 
   private async load(src: string, srcset?: string, sizes?: string): Promise<void> {
+    const generation = this.generation;
     try {
       const image = new Image();
       image.crossOrigin = 'anonymous';
@@ -128,14 +135,27 @@ export class TextureStore {
       // The reader may have moved on during the decode. Upload anyway — the
       // work is already done and the next `request` will evict it if it is no
       // longer wanted — but do not let a stale arrival push out a live page.
+      if (generation !== this.generation || this.gl.isContextLost()) return;
       this.textures.set(src, createTexture(this.gl, image));
       this.evict();
       this.onReady();
     } catch {
       // A missing page must not take the book down; it renders blank.
     } finally {
-      this.pending.delete(src);
+      if (generation === this.generation) this.pending.delete(src);
     }
+  }
+
+  /**
+   * Forget every texture: after a context loss they all belong to a context
+   * that no longer exists. Nothing is deleted — there is nothing left to
+   * delete — and the next 'request' loads the working set afresh.
+   */
+  reset(): void {
+    this.generation++;
+    this.textures.clear();
+    this.pending.clear();
+    this.live.clear();
   }
 
   get size(): number {
