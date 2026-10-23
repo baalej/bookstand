@@ -240,7 +240,14 @@ describe('touch parity with the mouse', () => {
     // The peek's arming zone is a genuinely different question — it has no
     // business asking whether a corner is already lifted — so it keeps its own.
     const peek = code.slice(code.indexOf('private maybePeek('));
-    expect(peek).toMatch(/cornerNearness\(book\) < gesture\.peekZone/);
+    expect(peek).toMatch(/cornerNearness\(book\) < this\.controller\.peekZone/);
+  });
+
+  it('arms the corner at the configured zone, not the default', () => {
+    // It read the token, so motion.peekZone resized the lift but not where
+    // it switched on: widen the zone and the lift started partway up, a jump
+    // at the old boundary. The controller sizes the lift; input must ask it.
+    expect(code).not.toMatch(/gesture\.peekZone/);
   });
 
   it('leaves a second finger to the browser', () => {

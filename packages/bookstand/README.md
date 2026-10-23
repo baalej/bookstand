@@ -253,8 +253,8 @@ motion: {
   peek:    { stiffness: 300 },   // the hover lift
   flickVelocity: 1.6,            // page-widths/sec that completes a turn regardless of distance
   intentLockPx: 6,               // travel before a press commits to a drag, in CSS px
-  peekDepth: 0.15,               // how far the hover lift rises
-  peekZone: 0.3,                 // corner region that arms it, as a fraction of the page diagonal
+  peekDepth: 0.25,               // how far a hovered corner lifts at most, as a fraction of page width — scales the lift at every distance
+  peekZone: 0.5,                 // how far from a corner it starts to react, as a fraction of the page diagonal — reaches past the page edge
   maxDuration: 900,              // hard ceiling on a settle, ms — a safety net, not the usual path
 }
 ```

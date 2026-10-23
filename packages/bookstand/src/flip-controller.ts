@@ -151,6 +151,16 @@ export class FlipController {
     return this.active !== null && this.active.mode === 'peek';
   }
 
+  /**
+   * The configured corner zone, as a fraction of the page diagonal. Input asks
+   * here rather than reading the token: the lift is sized from this value, so
+   * arming it from any other would start the lift partway up — a jump at the
+   * zone's edge instead of a rise.
+   */
+  get peekZone(): number {
+    return this.motion.peekZone;
+  }
+
   get interacting(): boolean {
     return this.active !== null;
   }

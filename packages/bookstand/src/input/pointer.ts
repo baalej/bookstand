@@ -1,7 +1,6 @@
 import type { FlipController } from '../flip-controller.js';
 import type { Layout } from '../layout.js';
 import { VelocityTracker } from '../motion/velocity.js';
-import { gesture } from '../motion/tokens.js';
 import type { FlipCorner, FlipDirection, Point } from '../types.js';
 
 export interface PointerInputOptions {
@@ -165,7 +164,7 @@ export class PointerInput {
    * the affordance, and reaching for it is unambiguous.
    */
   private grabsCorner(book: Point): boolean {
-    return this.controller.peeking || this.cornerNearness(book) < gesture.peekZone;
+    return this.controller.peeking || this.cornerNearness(book) < this.controller.peekZone;
   }
 
   private cornerNearness(book: Point): number {
@@ -188,7 +187,9 @@ export class PointerInput {
     if (event.button !== 0 && event.pointerType === 'mouse') return;
 
     const book = this.toBook(event.clientX, event.clientY);
-    if (!this.insideBook(book)) return;
+    // A lifted corner is taken wherever the press lands — including just past
+    // the page edge, where a cursor approaching from outside lifted it.
+    if (!this.insideBook(book) && !this.peeking) return;
 
     const direction = this.directionAt(book);
     const corner = this.cornerAt(book);
@@ -329,7 +330,13 @@ export class PointerInput {
     if (this.controller.dragging || this.controller.animating) return;
 
     const book = this.toBook(event.clientX, event.clientY);
-    const near = this.insideBook(book) && this.cornerNearness(book) < gesture.peekZone;
+    // Not limited to the page: a reader usually comes at a corner from
+    // outside it, and the canvas extends past the book, so the margin around
+    // a corner arms it too — but only half as far. The full zone reaches
+    // ~230px into empty margin, where the lift is too faint to see and a
+    // click that grabbed a page would come from nowhere.
+    const reach = this.insideBook(book) ? 1 : 0.5;
+    const near = this.cornerNearness(book) < this.controller.peekZone * reach;
 
     if (!near) {
       if (this.peeking) {

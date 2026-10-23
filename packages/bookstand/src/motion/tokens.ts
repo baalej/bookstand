@@ -70,10 +70,14 @@ export const gesture = {
    * How far the corner lifts on hover at its deepest, as a fraction of page
    * width. Reached when the cursor is on the corner, not when it is far away.
    */
-  peekDepth: 0.15,
+  peekDepth: 0.25,
 
-  /** Corner region that arms the peek, as a fraction of the page diagonal. */
-  peekZone: 0.3,
+  /**
+   * Corner region that arms the peek, as a fraction of the page diagonal.
+   * The lift eases in from the zone's edge, so it first shows at about 85% of
+   * this distance; at 0.3, and still at 0.4, the corner felt like it had to be found.
+   */
+  peekZone: 0.5,
 
   /** Hard ceiling on a settle, ms. A safety net, not the usual path. */
   maxDuration: 900,
