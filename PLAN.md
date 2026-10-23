@@ -1240,6 +1240,29 @@ through the flap's perspective scale (`c + (q − c)·w`) before testing it agai
 which ship as strings — **14,427 → 12,125 B gzip, 101% → 85% of budget**. The stripped bundle was
 loaded in a browser and links and renders.
 
+### Phase 4o — the roll's shading keeps its width while the roll relaxes
+
+Reported: early in a turn the fold carries a soft gradient; late in the turn it becomes a hard pixel
+line. Cause: the curl radius relaxes to zero after `relaxFrom` (0.62) so a turned page lands exactly
+where the resting spread draws it — and the roll's shading, computed at that radius, was squeezed into
+the same few pixels. The gradient was not fading, it was being compressed.
+
+The fix decouples look from geometry. `Fold.hold` (from `rollHold`, the same curve that relaxes the
+radius) says how much of the roll is left; the shader shades at `radius / hold` — the roll before it
+relaxed — pivoting on the point where the roll stands vertical, because that is where the geometry
+flips face and the shading must flip with it. The result is blended toward flat by `hold^0.3`, so it
+fades in strength instead of collapsing in width, and is flat when the page lands.
+
+> **The fade curve is most of the fix.** First shipped with a linear `hold`, it read as "not much
+> difference", and the numbers agreed: `hold` falls fast past 0.8, so fold darkening went 26 → 6 → 2
+> levels at progress 0.67 / 0.86 / 0.91, with the band at zero width by 0.91 — the same line, just
+> earlier. At `hold^0.3`: 26, 25, 21, 15, 10, 5 across 0.67–0.97, band 36–50 px wide throughout.
+
+Measured: frames before `relaxFrom` are **byte-identical** to before (`hold` = 1 reduces the formula to
+the old one); the landing hand-off is unchanged (38,754 px against the resting spread at
+progress 0.996, the same on the committed renderer — the last animated frame stops short of 1);
+hover peek 3,450 px, as before. `test/fold.test.ts` holds `radius / hold` to the unrelaxed radius.
+
 **Phase 6 — A11y, zoom, polish** *(~2 days)*
 ARIA, keyboard, live region, reduced motion, pinch/double-tap zoom and pan, no-JS fallback.
 

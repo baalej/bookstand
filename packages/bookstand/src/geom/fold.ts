@@ -57,6 +57,12 @@ export interface Fold {
   normal: Point;
   /** Curl cylinder radius, in page units. */
   radius: number;
+  /**
+   * Share of its full size the roll still holds: 1 mid-turn, falling to 0 as
+   * a turned page lies flat. `radius / hold` is the roll before it relaxed,
+   * which is what the shading keeps — see the renderer.
+   */
+  hold: number;
   /** 0 = flat and untouched, 1 = fully turned. */
   progress: number;
 }
@@ -175,9 +181,12 @@ export function curlRadius(
 ): number {
   const natural = Math.max(0, travel) / (2 * Math.PI);
   const bounded = clamp(natural, m.width * curl.minRadius, m.width * curl.maxRadius);
-  // 1 until the page is well past halfway, then down to 0 as it lies flat.
-  const relax = smoothstep(1, curl.relaxFrom, clamp(progress, 0, 1));
-  return bounded * relax;
+  return bounded * rollHold(progress, curl);
+}
+
+/** 1 until the page is well past halfway, then down to 0 as it lies flat. */
+export function rollHold(progress: number, curl: CurlOptions): number {
+  return smoothstep(1, curl.relaxFrom, clamp(progress, 0, 1));
 }
 
 /**
@@ -206,6 +215,7 @@ export function foldFor(
     // Degenerate at zero travel; the renderer skips the curl when progress is 0.
     normal: normalize(travel),
     radius: curlRadius(m, len(travel), progress, curl),
+    hold: rollHold(progress, curl),
     progress,
   };
 }

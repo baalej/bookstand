@@ -210,17 +210,17 @@ const float PI = 3.141592653589793;
  * a corner peek — and per-vertex normals across that band produce visible
  * facets however the mesh is tuned.
  */
+uniform float uShadeRadius;   // the roll before it relaxed
+uniform float uHold;          // share of the roll still held, 1 mid-turn
+
 vec3 surfaceNormal() {
   vec3 n;
   if (uCurl > 0.5) {
-    if (vFold <= 0.0) {
-      n = vec3(0.0, 0.0, 1.0);
-    } else {
-      float arc = vFold / uRadius;
-      n = arc < PI
-        ? vec3(-uFoldNormal * sin(arc), cos(arc))
-        : vec3(0.0, 0.0, -1.0);
-    }
+    // Shaded at the unrelaxed radius, pivoting on where the roll stands
+    // vertical, since that is where the geometry flips face.
+    float arc = clamp(0.5 * PI + (vFold - 0.5 * PI * uRadius) / uShadeRadius, 0.0, PI);
+    vec3 rolled = vec3(-uFoldNormal * sin(arc), cos(arc));
+    n = normalize(mix(vec3(0.0, 0.0, arc < 0.5 * PI ? 1.0 : -1.0), rolled, uHold));
   } else {
     n = vec3(-sin(vHinge), 0.0, cos(vHinge));
   }
@@ -329,6 +329,8 @@ const UNIFORMS = [
   'uFoldNormal',
   'uRadius',
   'uAngle',
+  'uShadeRadius',
+  'uHold',
   'uFocal',
   'uMinW',
   'uFront',
@@ -660,6 +662,18 @@ export class WebGLRenderer {
       // 2px off the spread, and show-through, which follows height, then
       // vanished at the hand-off instead of fading out.
       gl.uniform1f(this.u['uRadius']!, Math.max(1e-3, flip.fold.radius));
+      // As a page lands its roll tightens to nothing so it arrives exactly
+      // where the resting spread draws it — and its shading, squeezed into
+      // the same few pixels, became a hard line. The shading keeps the full
+      // roll's width instead and fades by how much of the roll is left.
+      gl.uniform1f(
+        this.u['uShadeRadius']!,
+        Math.max(1e-3, flip.fold.radius / Math.max(flip.fold.hold, 1e-3)),
+      );
+      // Faded on a curve, not linearly: hold falls fast once the page is past
+      // 0.8, and a linear fade erased the gradient by 0.91 — the reported line
+      // again, just earlier. At ^0.3 it steps down evenly to the landing.
+      gl.uniform1f(this.u['uHold']!, Math.pow(flip.fold.hold, 0.3));
       gl.uniform1f(this.u['uAngle']!, 0);
     } else {
       gl.uniform1f(this.u['uCurl']!, 0);

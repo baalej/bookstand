@@ -208,6 +208,23 @@ describe('curl radius', () => {
     expect(at(0.1)).toBeCloseTo(at(defaultCurl.relaxFrom), 8);
   });
 
+  it('says how much of the roll is left, so the shading can keep its width', () => {
+    // The roll tightens to nothing as a page lands; shaded at that radius,
+    // its whole gradient collapsed into a hard line. The renderer shades at
+    // radius / hold instead — which must be the roll before it relaxed.
+    let relaxed = 0;
+    for (const x of [300, 100, -100, -250, -330, -370]) {
+      const fold = foldFor(m, 'bottom', { x, y: 560 });
+      const travel = dist(restCorner(m, 'bottom'), fold.corner);
+      if (fold.progress < defaultCurl.relaxFrom) expect(fold.hold).toBe(1);
+      if (fold.hold < 1) relaxed++;
+      if (fold.hold > 0.01) {
+        expect(fold.radius / fold.hold).toBeCloseTo(curlRadius(m, travel, early, defaultCurl), 6);
+      }
+    }
+    expect(relaxed, 'the sweep must reach the relaxing range').toBeGreaterThan(0);
+  });
+
   it('is what foldFor hands the renderer', () => {
     const fold = foldFor(m, 'top', { x: 100, y: 200 });
     const travel = dist(restCorner(m, 'top'), fold.corner);
