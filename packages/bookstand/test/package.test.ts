@@ -312,6 +312,25 @@ describe('the README documents what it promises', () => {
     expect(options.filter((o) => !documents(o))).toEqual([]);
   });
 
+  it('covers every book, render and paper field', () => {
+    // The guard above reads BookstandOptions' own lines, so fields it inherits
+    // from BookInput, and everything nested under render, went unchecked —
+    // the paper stock shipped with nothing to stop it going undocumented.
+    const fields = (file: string, name: string): string[] => {
+      const block = source(file).match(new RegExp(`export interface ${name}[^{]*\\{([\\s\\S]*?)\\n\\}`))?.[1];
+      return [...(block ?? '').matchAll(/^ {2}(\w+)\??:/gm)].map((m) => m[1]!);
+    };
+    const all = [
+      ...fields('types.ts', 'BookInput'),
+      ...fields('render/webgl-renderer.ts', 'RenderOptions'),
+      ...fields('render/webgl-renderer.ts', 'PaperFinish'),
+    ];
+
+    expect(all).toEqual(expect.arrayContaining(['paper', 'papers', 'showThrough']));
+    expect(all.filter((f) => !documents(f))).toEqual([]);
+    for (const stock of ["'coated'", "'uncoated'"]) expect(readme).toContain(stock);
+  });
+
   it('covers every observed attribute of the element', () => {
     const attrs = [
       ...(source('element.ts').match(/observedAttributes = \[([^\]]+)\]/)?.[1] ?? '').matchAll(

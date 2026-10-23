@@ -67,6 +67,16 @@ your-site/
 }
 ```
 
+The JSON takes every option the constructor does — a page can be an object, `paper` can be set per
+page or for the whole book, and `render` / `motion` tune the feel:
+
+```json
+{
+  "paper": "uncoated",
+  "spreads": [[{ "src": "/photo-left.jpg", "paper": "coated" }, "/text-right.jpg"]]
+}
+```
+
 Or skip the extra request and declare it inline:
 
 ```html
@@ -211,6 +221,8 @@ spread, strongest over dark print, with a bright streak along the roll as it tur
 novels, notebooks — is matte: no glare, a faint veil over the blacks, and a lifted sheet shows more
 of its reverse. Interior pages default to the book's `paper` option, and that to `'uncoated'`;
 covers default to `'coated'`, a laminated board. Any page, covers included, can name its own.
+In TypeScript the value is the exported `Paper` type, and the stocks are retuned through
+`render.papers`, whose entries are `PaperFinish`.
 
 Covers are optional and independent: cover only, back cover only, both, or neither. A cover sits on
 the right with the left half reserved, so the footprint never changes and opening the book does not
@@ -293,7 +305,7 @@ render: {
   papers: {                   // per stock; override one field and the rest keep their defaults
     coated:   { gloss: [0.12, 0.22], shininess: 250, grain: 0.004, showThrough: 0.02 },
     uncoated: { gloss: [0.01, 0.035], shininess: 2, grain: 0.012, showThrough: 0.04 },
-  },                          // gloss: [bare paper, solid ink]; grain 0 for scans with their own
+  },                          // gloss: [bare paper, solid ink]
   grainSize: 256,             // one grain tile, in CSS pixels
   segments: [160, 120],       // curl mesh subdivisions
 }
@@ -303,7 +315,8 @@ render: {
 is there to sculpt the roll, not to light the scene. Every paper term computes the same thing
 for a page resting and a page lifted under the cursor, so hovering never changes how flat paper
 looks. `showThrough` follows the sheet's height off the page and fades to nothing as it lands;
-`grain` is generated in code, so it costs no request. There is no cast-shadow option: see `PLAN.md`
+`grain` is generated in code, so it costs no request. Scans that carry their own paper texture
+want it off, on both stocks: `papers: { coated: { grain: 0 }, uncoated: { grain: 0 } }`. There is no cast-shadow option: see `PLAN.md`
 §4j for why it was removed rather than tuned.
 </details>
 
